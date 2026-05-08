@@ -1,0 +1,192 @@
+<?php
+require_once __DIR__ . '/app/helpers/session.php';
+require_once __DIR__ . '/app/config/database.php';
+require_once __DIR__ . '/app/helpers/notifications.php';
+require_once __DIR__ . '/app/helpers/ticket_activity.php';
+require_once __DIR__ . '/app/helpers/technician_assignment.php';
+
+requireLogin();
+
+$currentUser = user();
+
+if (($currentUser['role'] ?? '') !== 'CLIENT') {
+    header('Location: home.php');
+    exit;
+}
+
+if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+    header('Location: home.php');
+    exit;
+}
+
+$subject = trim($_POST['subject'] ?? '');
+$description = trim($_POST['description'] ?? '');
+$priority = trim($_POST['priority'] ?? '');
+$category = trim($_POST['category'] ?? '');
+
+$allowedPriorities = ['BAJA', 'MEDIA', 'ALTA'];
+$allowedCategories = ['ACCESO', 'SISTEMA', 'HARDWARE', 'SOFTWARE', 'RED', 'OTROS'];
+
+if ($subject === '' || $description === '' || $priority === '' || $category === '') {
+    $_SESSION['ticket_error'] = 'Todos los campos son obligatorios.';
+    header('Location: /helpdesk-php/app/views/client/create-ticket.php');
+    exit;
+}
+
+if (!in_array($priority, $allowedPriorities, true)) {
+    $_SESSION['ticket_error'] = 'La prioridad seleccionada no es válida.';
+    header('Location: /helpdesk-php/app/views/client/create-ticket.php');
+    exit;
+}
+
+if (!in_array($category, $allowedCategories, true)) {
+    $_SESSION['ticket_error'] = 'La categoría seleccionada no es válida.';
+    header('Location: /helpdesk-php/app/views/client/create-ticket.php');
+    exit;
+}
+
+// SLA por prioridad
+$slaHours = 24;
+
+if ($priority === 'ALTA') {
+    $slaHours = 8;
+} elseif ($priority === 'MEDIA') {
+    $slaHours = 24;
+} elseif ($priority === 'BAJA') {
+    $slaHours = 48;
+}
+
+/*
+|--------------------------------------------------------------------------
+| Asignación automática por nivel
+|--------------------------------------------------------------------------
+| Al crear el ticket, el sistema busca automáticamente un técnico de nivel 1
+| con menor cantidad de tickets activos.
+*/
+$assignedTech = getAvailableTechnicianByLevel($pdo, 1);
+
+$assignedTo = $assignedTech ? (int)$assignedTech['id'] : null;
+$supportLevel = 1;
+$initialStatus = $assignedTo !== null ? 'EN_PROCESO' : 'ABIERTO';
+
+try {
+    $pdo->beginTransaction();
+
+    $sql = "INSERT INTO tickets (
+                requester_id,
+                assigned_to,
+                subject,
+                description,
+                status,
+                priority,
+                category,
+                client_closed,
+                sla_hours,
+                support_level,
+                level_started_at,
+                level_first_response_at,
+                created_at,
+                updated_at
+            ) VALUES (
+                :requester_id,
+                :assigned_to,
+                :subject,
+                :description,
+                :status,
+                :priority,
+                :category,
+                0,
+                :sla_hours,
+                :support_level,
+                CURRENT_TIMESTAMP,
+                NULL,
+                CURRENT_TIMESTAMP,
+                CURRENT_TIMESTAMP
+            )";
+
+    $stmt = $pdo->prepare($sql);
+
+    $stmt->bindValue(':requester_id', (int)$currentUser['id'], PDO::PARAM_INT);
+
+    if ($assignedTo === null) {
+        $stmt->bindValue(':assigned_to', null, PDO::PARAM_NULL);
+    } else {
+        $stmt->bindValue(':assigned_to', $assignedTo, PDO::PARAM_INT);
+    }
+
+    $stmt->bindValue(':subject', $subject);
+    $stmt->bindValue(':description', $description);
+    $stmt->bindValue(':status', $initialStatus);
+    $stmt->bindValue(':priority', $priority);
+    $stmt->bindValue(':category', $category);
+    $stmt->bindValue(':sla_hours', $slaHours, PDO::PARAM_INT);
+    $stmt->bindValue(':support_level', $supportLevel, PDO::PARAM_INT);
+
+    $stmt->execute();
+
+    $createdTicketId = (int)$pdo->lastInsertId();
+
+    // Registrar actividad de creación
+    createTicketActivity(
+        $pdo,
+        $createdTicketId,
+        (int)$currentUser['id'],
+        $currentUser['name'],
+        $currentUser['role'],
+        'CREATED',
+        'El cliente creó el ticket.'
+    );
+
+    // Registrar actividad de asignación automática
+    if ($assignedTo !== null) {
+        createTicketActivity(
+            $pdo,
+            $createdTicketId,
+            (int)$currentUser['id'],
+            $currentUser['name'],
+            $currentUser['role'],
+            'AUTO_ASSIGNED',
+            'El sistema asignó automáticamente el ticket al técnico de nivel 1: ' . $assignedTech['name'] . '.',
+            null,
+            (string)$assignedTo
+        );
+
+        createNotification(
+            $pdo,
+            $assignedTo,
+            'Nuevo ticket asignado',
+            'Se te asignó automáticamente el ticket #' . $createdTicketId . '.',
+            'info',
+            $createdTicketId
+        );
+    }
+
+    // Notificar a administradores
+    notifyAdmins(
+        $pdo,
+        'Nuevo ticket creado',
+        'Se registró el ticket #' . $createdTicketId . ' por el cliente ' . $currentUser['name'] . '.',
+        'info',
+        $createdTicketId
+    );
+
+    $pdo->commit();
+
+    if ($assignedTo !== null) {
+        $_SESSION['ticket_success'] = 'El ticket fue creado y asignado automáticamente a un técnico de nivel 1.';
+    } else {
+        $_SESSION['ticket_success'] = 'El ticket fue creado correctamente, pero no hay técnicos de nivel 1 disponibles.';
+    }
+
+    header('Location: /helpdesk-php/home.php');
+    exit;
+
+} catch (PDOException $e) {
+    if ($pdo->inTransaction()) {
+        $pdo->rollBack();
+    }
+
+    $_SESSION['ticket_error'] = 'Ocurrió un error al crear el ticket.';
+    header('Location: /helpdesk-php/app/views/client/create-ticket.php');
+    exit;
+}

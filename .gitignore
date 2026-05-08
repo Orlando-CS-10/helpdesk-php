@@ -1,0 +1,16 @@
+.env
+*.log
+*.tmp
+*.bak
+*.zip
+*.rar
+
+.DS_Store
+Thumbs.db
+
+vendor/
+node_modules/
+
+app/config/database.php
+public/assets/img/*.pdf
+public/assets/img/*.docx

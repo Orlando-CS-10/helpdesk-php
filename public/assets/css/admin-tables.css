@@ -1,0 +1,181 @@
+/* ============================= */
+/* ADMIN TICKETS */
+/* ============================= */
+.admin-filters-card {
+    margin-bottom: 20px;
+    padding: 24px;
+}
+
+.admin-tickets-table {
+    min-width: 1250px;
+}
+
+.admin-ticket-inline-form {
+    display: grid;
+    gap: 8px;
+    min-width: 180px;
+}
+
+.admin-ticket-inline-form select {
+    width: 100%;
+    padding: 9px 10px;
+    border-radius: 10px;
+    border: 1px solid var(--color-border);
+    background: #ffffff;
+    color: var(--color-text);
+    font-size: 13px;
+    outline: none;
+}
+
+.small-btn {
+    min-width: auto;
+    padding: 9px 12px;
+    font-size: 13px;
+}
+
+.admin-kpi-grid-6 {
+    grid-template-columns: repeat(3, 1fr);
+}
+
+@media (max-width: 1200px) {
+    .admin-kpi-grid-6 {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+@media (max-width: 640px) {
+    .admin-kpi-grid-6 {
+        grid-template-columns: 1fr;
+    }
+}
+
+
+/* ============================= */
+/* TABLAS ADMIN */
+/* ============================= */
+.admin-users-table {
+    min-width: 1500px;
+}
+
+.admin-tickets-table-wide {
+    min-width: 1500px;
+}
+
+.metric-pill {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 78px;
+    padding: 5px 10px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 700;
+    border: 1px solid #e7edf4;
+    background: #ffffff;
+    color: var(--color-text);
+    text-align: center;
+    line-height: 1.2;
+}
+
+.neutral-pill { background: #f8fafc; color: #334155; }
+.pending-pill { background: #fff7ed; color: #9a3412; border-color: #fed7aa; }
+.success-pill { background: #ecfdf5; color: #166534; border-color: #bbf7d0; }
+.danger-pill { background: #fef2f2; color: #b91c1c; border-color: #fecaca; }
+
+.ticket-info-item strong.success { color: #16a34a; }
+.ticket-info-item strong.danger { color: #dc2626; }
+.ticket-info-item strong.pending { color: #d97706; }
+
+/* Compactar tabla admin de tickets */
+.admin-tickets-table th,
+.admin-tickets-table td {
+    padding: 10px 12px;
+    vertical-align: middle;
+}
+
+.admin-tickets-table tbody tr {
+    border-bottom: 1px solid #eef2f7;
+}
+
+.admin-ticket-inline-form { gap: 6px; }
+
+.admin-ticket-inline-form select {
+    height: 36px;
+    padding: 6px 10px;
+    font-size: 13px;
+}
+
+.admin-ticket-inline-form .small-btn,
+.admin-ticket-inline-form button {
+    height: 36px;
+    padding: 6px 14px;
+    font-size: 13px;
+}
+
+.ticket-subject-cell p {
+    margin-top: 4px;
+    line-height: 1.2;
+}
+
+.table-badge,
+.metric-pill,
+.ticket-code-pill {
+    padding: 5px 10px;
+    font-size: 12px;
+}
+
+/* Tabla admin ordenada y legible */
+.admin-tickets-table th,
+.admin-tickets-table td {
+    padding: 12px 14px;
+    vertical-align: middle;
+}
+
+.admin-tickets-table tbody tr {
+    border-bottom: 1px solid #eef2f7;
+}
+
+.admin-ticket-inline-form {
+    display: grid;
+    grid-template-columns: 130px 140px;
+    gap: 8px;
+    min-width: 280px;
+}
+
+.admin-ticket-inline-form select {
+    height: 36px;
+    padding: 6px 10px;
+    font-size: 13px;
+}
+
+.admin-ticket-inline-form button,
+.admin-ticket-inline-form .small-btn {
+    grid-column: 1 / -1;
+    height: 36px;
+    padding: 6px 12px;
+    font-size: 13px;
+}
+
+.table-badge,
+.metric-pill,
+.ticket-code-pill {
+    min-height: 30px;
+    padding: 5px 11px;
+    font-size: 12px;
+    text-align: center;
+    line-height: 1.2;
+}
+
+.metric-pill {
+    min-width: 78px;
+}
+
+.ticket-subject-cell strong {
+    margin-bottom: 4px;
+    line-height: 1.2;
+}
+
+.ticket-subject-cell p {
+    margin: 0;
+    line-height: 1.3;
+}

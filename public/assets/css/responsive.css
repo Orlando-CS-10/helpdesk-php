@@ -1,0 +1,121 @@
+/* ============================= */
+/* RESPONSIVE */
+/* ============================= */
+@media (max-width: 1200px) {
+    .ticket-admin-layout {
+        grid-template-columns: 1fr;
+    }
+
+    .ticket-client-sidebar {
+        position: static;
+    }
+}
+
+/* ============================= */
+/* RESPONSIVE */
+/* ============================= */
+@media (max-width: 960px) {
+    .hero-grid,
+    .cards-grid,
+    .about-box {
+        grid-template-columns: 1fr;
+    }
+
+    .hero-text h1 {
+        font-size: 38px;
+    }
+
+    .hero-card-header h3 {
+        font-size: 28px;
+    }
+
+    .about-box h2 {
+        font-size: 30px;
+    }
+}
+
+@media (max-width: 720px) {
+    .header-inner {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .header-actions {
+        width: 100%;
+    }
+
+    .hero {
+        padding: 44px 0;
+    }
+
+    .hero-text h1 {
+        font-size: 32px;
+    }
+
+    .hero-text p {
+        font-size: 16px;
+    }
+
+    .hero-card,
+    .about-box,
+    .info-card,
+    .login-card,
+    .card {
+        padding: 20px;
+    }
+
+    .feature-item {
+        padding: 14px;
+    }
+
+    .feature-content h4 {
+        font-size: 16px;
+    }
+
+    .footer-inner {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+}
+
+/* ============================= */
+/* RESPONSIVE ADMIN */
+/* ============================= */
+@media (max-width: 1200px) {
+    .admin-kpi-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    .admin-panel-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 920px) {
+    .admin-shell {
+        grid-template-columns: 1fr;
+    }
+
+    .admin-sidebar {
+        border-right: none;
+        border-bottom: 1px solid rgba(255,255,255,0.08);
+    }
+
+    .admin-summary-list {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 640px) {
+    .admin-topbar-left h1 {
+        font-size: 28px;
+    }
+
+    .admin-kpi-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .admin-content {
+        padding: 16px;
+    }
+}

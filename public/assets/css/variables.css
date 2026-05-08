@@ -1,0 +1,15 @@
+/* ============================= */
+/* VARIABLES DE COLOR */
+/* ============================= */
+:root {
+    --color-primary: #0f3d2e;
+    --color-secondary: #ff7a00;
+    --color-accent: #1f7a5a;
+    --color-light: #ffffff;
+    --color-bg-soft: #f8fafc;
+    --color-bg-alt: #f1f5f9;
+    --color-text: #0f172a;
+    --color-muted: #64748b;
+    --color-border: #e5e7eb;
+    --shadow-soft: 0 10px 30px rgba(15, 61, 46, 0.08);
+}
