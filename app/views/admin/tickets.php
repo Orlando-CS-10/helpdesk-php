@@ -222,27 +222,38 @@ require_once __DIR__ . '/../layouts/header.php';
                                         </td>
 
                                         <td>
-                                            <form action="/helpdesk-php/update-ticket-admin.php" method="POST" class="admin-ticket-inline-form">
-                                                <input type="hidden" name="ticket_id" value="<?= (int)$ticket['id'] ?>">
+                                            <?php if (($ticket['status'] ?? '') !== 'CERRADO'): ?>
 
-                                                <select name="status" required>
-                                                    <option value="ABIERTO" <?= $ticket['status'] === 'ABIERTO' ? 'selected' : '' ?>>Abierto</option>
-                                                    <option value="EN_PROCESO" <?= $ticket['status'] === 'EN_PROCESO' ? 'selected' : '' ?>>En proceso</option>
-                                                    <option value="RESPONDIDO" <?= $ticket['status'] === 'RESPONDIDO' ? 'selected' : '' ?>>Respondido</option>
-                                                    <option value="CERRADO" <?= $ticket['status'] === 'CERRADO' ? 'selected' : '' ?>>Cerrado</option>
-                                                </select>
+                                                <div class="admin-ticket-actions">
 
-                                                <select name="assigned_to">
-                                                    <option value="">Sin asignar</option>
-                                                    <?php foreach ($techUsers as $tech): ?>
-                                                        <option value="<?= (int)$tech['id'] ?>" <?= (int)$ticket['assigned_to'] === (int)$tech['id'] ? 'selected' : '' ?>>
-                                                            <?= htmlspecialchars($tech['name']) ?>
-                                                        </option>
-                                                    <?php endforeach; ?>
-                                                </select>
+                                                    <form action="/helpdesk-php/update-ticket-admin.php" method="POST" class="admin-ticket-inline-form">
+                                                        <input type="hidden" name="ticket_id" value="<?= (int)$ticket['id'] ?>">
+                                                        <input type="hidden" name="assigned_to" value="<?= htmlspecialchars($ticket['assigned_to'] ?? '') ?>">
 
-                                                <button type="submit" class="btn-primary small-btn">Guardar</button>
-                                            </form>
+                                                        <select name="status" required>
+                                                            <option value="ABIERTO" <?= $ticket['status'] === 'ABIERTO' ? 'selected' : '' ?>>Abierto</option>
+                                                            <option value="EN_PROCESO" <?= $ticket['status'] === 'EN_PROCESO' ? 'selected' : '' ?>>En proceso</option>
+                                                            <option value="RESPONDIDO" <?= $ticket['status'] === 'RESPONDIDO' ? 'selected' : '' ?>>Respondido</option>
+                                                            <option value="CERRADO" <?= $ticket['status'] === 'CERRADO' ? 'selected' : '' ?>>Cerrado</option>
+                                                        </select>
+
+                                                        <button type="submit" class="btn-primary small-btn">Guardar</button>
+                                                    </form>
+
+                                                    <button
+                                                        type="button"
+                                                        class="btn-secondary small-btn admin-assign-tech-btn"
+                                                        onclick="openAssignModal(<?= (int)$ticket['id'] ?>)">
+                                                        Asignar técnico
+                                                    </button>
+
+                                                </div>
+
+                                            <?php else: ?>
+
+                                                <span class="metric-pill neutral-pill admin-readonly-pill">Solo lectura</span>
+
+                                            <?php endif; ?>
                                         </td>
 
                                         <td>
@@ -263,6 +274,53 @@ require_once __DIR__ . '/../layouts/header.php';
                 <?php endif; ?>
             </section>
         </main>
+    </div>
+</div>
+
+<div class="modal-overlay" id="assignTechModal">
+    <div class="custom-modal custom-modal-lg">
+        <div class="custom-modal-header">
+            <h3>Asignar técnico</h3>
+            <button type="button" class="modal-close-btn" onclick="closeAssignModal()">×</button>
+        </div>
+
+        <div class="custom-modal-body">
+            <input type="hidden" id="assignTicketId">
+
+            <div class="tech-level-tabs">
+                <button type="button" class="tech-level-btn active" onclick="filterTechLevel('all', this)">Todos</button>
+                <button type="button" class="tech-level-btn" onclick="filterTechLevel('1', this)">Nivel 1</button>
+                <button type="button" class="tech-level-btn" onclick="filterTechLevel('2', this)">Nivel 2</button>
+                <button type="button" class="tech-level-btn" onclick="filterTechLevel('3', this)">Nivel 3</button>
+            </div>
+
+            <div class="tech-list">
+                <?php foreach ($techUsers as $tech): ?>
+                    <form
+                        action="/helpdesk-php/update-ticket-admin.php"
+                        method="POST"
+                        class="tech-card"
+                        data-level="<?= (int)($tech['tech_level'] ?? 1) ?>">
+                        <input type="hidden" name="ticket_id" class="modal-ticket-id">
+                        <input type="hidden" name="assigned_to" value="<?= (int)$tech['id'] ?>">
+                        <input type="hidden" name="status" value="EN_PROCESO">
+
+                        <div class="tech-avatar">
+                            <?= strtoupper(substr($tech['name'], 0, 1)) ?>
+                        </div>
+
+                        <div class="tech-info">
+                            <strong><?= htmlspecialchars($tech['name']) ?></strong>
+                            <span>Nivel <?= (int)($tech['tech_level'] ?? 1) ?></span>
+                        </div>
+
+                        <button type="submit" class="btn-primary small-btn">
+                            Asignar
+                        </button>
+                    </form>
+                <?php endforeach; ?>
+            </div>
+        </div>
     </div>
 </div>
 

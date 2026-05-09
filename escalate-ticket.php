@@ -175,12 +175,17 @@ try {
         );
     }
 
+    if (($ticket['status'] ?? '') === 'CERRADO') {
+        $_SESSION['ticket_error'] = 'No se puede escalar un ticket cerrado.';
+        header('Location: /helpdesk-php/admin-tickets.php');
+        exit;
+    }
+
     $pdo->commit();
 
     $_SESSION['ticket_success'] = 'Tu respuesta fue enviada correctamente.';
     header('Location: /helpdesk-php/ticket-detail.php?id=' . $ticketId);
     exit;
-
 } catch (PDOException $e) {
     if ($pdo->inTransaction()) {
         $pdo->rollBack();

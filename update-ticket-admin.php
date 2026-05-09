@@ -83,6 +83,12 @@ if (!$ticket) {
     exit;
 }
 
+if (($ticket['status'] ?? '') === 'CERRADO') {
+    $_SESSION['ticket_error'] = 'No se puede modificar un ticket cerrado.';
+    header('Location: /helpdesk-php/admin-tickets.php');
+    exit;
+}
+
 try {
     $pdo->beginTransaction();
 
