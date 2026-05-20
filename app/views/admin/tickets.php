@@ -310,11 +310,17 @@ require_once __DIR__ . '/../layouts/header.php';
                         </div>
 
                         <div class="tech-info">
-                            <strong><?= htmlspecialchars($tech['name']) ?></strong>
-                            <span>Nivel <?= (int)($tech['tech_level'] ?? 1) ?></span>
+                            <div class="tech-name-row">
+                                <strong><?= htmlspecialchars($tech['name']) ?></strong>
+                                <span class="tech-level-badge">
+                                    Nivel <?= (int)($tech['tech_level'] ?? 1) ?>
+                                </span>
+                            </div>
+
+                            <p>Técnico disponible para asignación de incidencias.</p>
                         </div>
 
-                        <button type="submit" class="btn-primary small-btn">
+                        <button type="submit" class="btn-primary small-btn tech-assign-btn">
                             Asignar
                         </button>
                     </form>

@@ -1064,8 +1064,10 @@
     border-radius: 999px;
     font-weight: 700;
     cursor: pointer;
+    transition: all 0.2s ease;
 }
 
+.tech-level-btn:hover,
 .tech-level-btn.active {
     background: #ff7a00;
     color: #ffffff;
@@ -1075,39 +1077,81 @@
 .tech-list {
     display: grid;
     gap: 12px;
+    max-height: 430px;
+    overflow-y: auto;
+    padding-right: 4px;
 }
 
 .tech-card {
     display: grid;
-    grid-template-columns: 48px 1fr auto;
+    grid-template-columns: 52px 1fr auto;
     align-items: center;
-    gap: 12px;
+    gap: 14px;
     padding: 14px;
     border: 1px solid #e7edf4;
-    border-radius: 16px;
+    border-radius: 18px;
     background: #f8fafc;
+    transition: all 0.2s ease;
+}
+
+.tech-card:hover {
+    background: #ffffff;
+    border-color: rgba(255, 122, 0, 0.35);
+    box-shadow: 0 10px 24px rgba(15, 61, 46, 0.08);
+    transform: translateY(-1px);
 }
 
 .tech-avatar {
-    width: 48px;
-    height: 48px;
-    border-radius: 50%;
+    width: 52px;
+    height: 52px;
+    border-radius: 16px;
     background: #ff7a00;
     color: #ffffff;
     display: flex;
     align-items: center;
     justify-content: center;
     font-weight: 800;
+    font-size: 18px;
+    flex-shrink: 0;
+}
+
+.tech-info {
+    min-width: 0;
+}
+
+.tech-name-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-bottom: 5px;
 }
 
 .tech-info strong {
-    display: block;
     font-size: 15px;
+    color: #0f172a;
 }
 
-.tech-info span {
-    display: block;
-    margin-top: 4px;
+.tech-info p {
+    margin: 0;
     font-size: 13px;
     color: #64748b;
+    line-height: 1.4;
+}
+
+.tech-level-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 4px 8px;
+    border-radius: 999px;
+    background: #ecfdf5;
+    color: #166534;
+    font-size: 11px;
+    font-weight: 800;
+}
+
+.tech-assign-btn {
+    min-width: 90px;
+    height: 34px;
+    font-size: 12px;
 }

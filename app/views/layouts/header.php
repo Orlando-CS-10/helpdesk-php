@@ -44,13 +44,14 @@ if (isLoggedIn()) {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><?= $title ?? 'Mesa de Ayuda'; ?></title>
-    <link rel="stylesheet" href="/helpdesk-php/public/assets/css/base.css?v=1">
-    <link rel="stylesheet" href="/helpdesk-php/public/assets/css/layout.css">
-    <link rel="stylesheet" href="/helpdesk-php/public/assets/css/admin.css">
-    <link rel="stylesheet" href="/helpdesk-php/public/assets/css/tables.css">
-    <link rel="stylesheet" href="/helpdesk-php/public/assets/css/tickets.css?v=1">
-    <link rel="stylesheet" href="/helpdesk-php/public/assets/css/dashboard.css">
-    <link rel="stylesheet" href="/helpdesk-php/public/assets/css/responsive.css">
+    <link rel="stylesheet" href="/helpdesk-php/public/assets/css/base.css?v=2">
+    <link rel="stylesheet" href="/helpdesk-php/public/assets/css/layout.css?v=2">
+    <link rel="stylesheet" href="/helpdesk-php/public/assets/css/admin.css?v=2">
+    <link rel="stylesheet" href="/helpdesk-php/public/assets/css/tables.css?v=2">
+    <link rel="stylesheet" href="/helpdesk-php/public/assets/css/tickets.css?v=2">
+    <link rel="stylesheet" href="/helpdesk-php/public/assets/css/dashboard.css?v=2">
+    <link rel="stylesheet" href="/helpdesk-php/public/assets/css/responsive.css?v=2">
+    <link rel="stylesheet" href="/helpdesk-php/public/assets/css/auth.css?v=2">
     <script src="https://kit.fontawesome.com/b44fd2b2de.js" crossorigin="anonymous"></script>
 </head>
 
