@@ -83,11 +83,20 @@ $stmt = $pdo->prepare($sql);
 $stmt->execute($params);
 $tickets = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-// técnicos disponibles
-$sqlTechs = "SELECT id, name
-             FROM users
-             WHERE role = 'TECH' AND status = 1
-             ORDER BY name ASC";
+// técnicos disponibles con carga actual de tickets
+$sqlTechs = "SELECT 
+                u.id,
+                u.name,
+                u.tech_level,
+                COUNT(t.id) AS active_tickets
+             FROM users u
+             LEFT JOIN tickets t 
+                ON t.assigned_to = u.id
+                AND t.status IN ('ABIERTO', 'EN_PROCESO', 'RESPONDIDO')
+             WHERE u.role = 'TECH'
+               AND u.status = 1
+             GROUP BY u.id, u.name, u.tech_level
+             ORDER BY u.tech_level ASC, active_tickets ASC, u.name ASC";
 
 $stmtTechs = $pdo->prepare($sqlTechs);
 $stmtTechs->execute();

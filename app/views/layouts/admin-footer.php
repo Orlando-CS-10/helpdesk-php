@@ -25,15 +25,31 @@
 </script>
 
 <script>
-    function openAssignModal(ticketId) {
+    function openAssignModal(ticketId, assignedTo) {
         const modal = document.getElementById('assignTechModal');
         const ticketInput = document.getElementById('assignTicketId');
         const modalTicketInputs = document.querySelectorAll('.modal-ticket-id');
+        const assignButtons = document.querySelectorAll('.tech-assign-btn');
 
         ticketInput.value = ticketId;
 
         modalTicketInputs.forEach(input => {
             input.value = ticketId;
+        });
+
+        assignButtons.forEach(button => {
+            const techId = parseInt(button.dataset.techId || '0', 10);
+            const currentAssigned = parseInt(assignedTo || '0', 10);
+
+            if (techId === currentAssigned) {
+                button.textContent = 'Asignado';
+                button.disabled = true;
+                button.classList.add('tech-assigned-btn');
+            } else {
+                button.textContent = 'Asignar';
+                button.disabled = false;
+                button.classList.remove('tech-assigned-btn');
+            }
         });
 
         modal.classList.add('show');
@@ -52,11 +68,7 @@
         button.classList.add('active');
 
         cards.forEach(card => {
-            if (level === 'all' || card.dataset.level === level) {
-                card.style.display = 'grid';
-            } else {
-                card.style.display = 'none';
-            }
+            card.style.display = (level === 'all' || card.dataset.level === level) ? 'grid' : 'none';
         });
     }
 </script>

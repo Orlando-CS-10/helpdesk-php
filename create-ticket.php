@@ -63,10 +63,10 @@ if ($priority === 'ALTA') {
 | Al crear el ticket, el sistema busca automáticamente un técnico de nivel 1
 | con menor cantidad de tickets activos.
 */
-$assignedTech = getAvailableTechnicianByLevel($pdo, 1);
+$assignedTech = getSmartTechnicianAssignment($pdo, 1);
 
 $assignedTo = $assignedTech ? (int)$assignedTech['id'] : null;
-$supportLevel = 1;
+$supportLevel = $assignedTech ? (int)$assignedTech['tech_level'] : 1;
 $initialStatus = $assignedTo !== null ? 'EN_PROCESO' : 'ABIERTO';
 
 try {
@@ -146,7 +146,7 @@ try {
             $currentUser['name'],
             $currentUser['role'],
             'AUTO_ASSIGNED',
-            'El sistema asignó automáticamente el ticket al técnico de nivel 1: ' . $assignedTech['name'] . '.',
+            'El sistema asignó automáticamente el ticket al técnico de nivel ' . $supportLevel . ': ' . $assignedTech['name'] . ', considerando la menor carga de tickets activos.',
             null,
             (string)$assignedTo
         );

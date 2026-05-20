@@ -1048,110 +1048,199 @@
     font-size: 13px !important;
 }
 
-/* Modal de técnicos */
+/* Modal asignación técnico - compacto */
+#assignTechModal .custom-modal {
+    max-width: 680px;
+    border-radius: 16px;
+    overflow: hidden;
+    animation: modalSoftIn 0.22s ease;
+}
+
+#assignTechModal .custom-modal-header {
+    background: #0f3d2e;
+    padding: 16px 20px;
+    border-bottom: 2px solid #1f7a5a;
+}
+
+#assignTechModal .custom-modal-header h3 {
+    font-size: 20px;
+    font-weight: 800;
+}
+
+#assignTechModal .custom-modal-body {
+    padding: 18px 20px 20px;
+    background: #f8fafc;
+}
+
 .tech-level-tabs {
     display: flex;
-    gap: 8px;
-    margin-bottom: 18px;
-    flex-wrap: wrap;
+    width: fit-content;
+    gap: 4px;
+    padding: 4px;
+    margin-bottom: 14px;
+    border: 1px solid #dbe3ec;
+    border-radius: 12px;
+    background: #ffffff;
 }
 
 .tech-level-btn {
-    border: 1px solid #e5e7eb;
-    background: #ffffff;
-    color: #0f172a;
-    padding: 9px 14px;
-    border-radius: 999px;
-    font-weight: 700;
+    border: 0;
+    background: transparent;
+    color: #475569;
+    padding: 7px 13px;
+    border-radius: 9px;
+    font-size: 13px;
+    font-weight: 800;
     cursor: pointer;
-    transition: all 0.2s ease;
+    transition: all 0.18s ease;
 }
 
-.tech-level-btn:hover,
+.tech-level-btn:hover {
+    background: #eef6f2;
+    color: #0f3d2e;
+}
+
 .tech-level-btn.active {
-    background: #ff7a00;
+    background: #0f3d2e;
     color: #ffffff;
-    border-color: #ff7a00;
 }
 
 .tech-list {
     display: grid;
-    gap: 12px;
-    max-height: 430px;
+    gap: 10px;
+    max-height: 360px;
     overflow-y: auto;
     padding-right: 4px;
 }
 
 .tech-card {
     display: grid;
-    grid-template-columns: 52px 1fr auto;
+    grid-template-columns: 44px 1fr auto;
     align-items: center;
-    gap: 14px;
-    padding: 14px;
-    border: 1px solid #e7edf4;
-    border-radius: 18px;
-    background: #f8fafc;
-    transition: all 0.2s ease;
+    gap: 12px;
+    padding: 12px 14px;
+    border: 1px solid #dfe7ef;
+    border-left: 3px solid #1f7a5a;
+    border-radius: 14px;
+    background: #ffffff;
+    transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+    animation: techCardIn 0.22s ease both;
 }
 
 .tech-card:hover {
-    background: #ffffff;
-    border-color: rgba(255, 122, 0, 0.35);
-    box-shadow: 0 10px 24px rgba(15, 61, 46, 0.08);
     transform: translateY(-1px);
+    border-color: #cbd5e1;
+    border-left-color: #0f3d2e;
+    box-shadow: 0 10px 22px rgba(15, 61, 46, 0.08);
 }
 
 .tech-avatar {
-    width: 52px;
-    height: 52px;
-    border-radius: 16px;
-    background: #ff7a00;
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+    background: #0f3d2e;
     color: #ffffff;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-weight: 800;
-    font-size: 18px;
-    flex-shrink: 0;
-}
-
-.tech-info {
-    min-width: 0;
+    font-weight: 900;
+    font-size: 17px;
 }
 
 .tech-name-row {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 7px;
     flex-wrap: wrap;
-    margin-bottom: 5px;
+    margin-bottom: 3px;
 }
 
 .tech-info strong {
-    font-size: 15px;
+    font-size: 14px;
     color: #0f172a;
 }
 
 .tech-info p {
     margin: 0;
-    font-size: 13px;
     color: #64748b;
-    line-height: 1.4;
+    font-size: 12px;
 }
 
 .tech-level-badge {
     display: inline-flex;
     align-items: center;
-    padding: 4px 8px;
+    padding: 3px 8px;
     border-radius: 999px;
-    background: #ecfdf5;
-    color: #166534;
-    font-size: 11px;
+    background: #eef6f2;
+    color: #0f3d2e;
+    border: 1px solid #cfe7db;
+    font-size: 10px;
+    font-weight: 900;
+}
+
+.tech-load-number {
+    color: #0f3d2e;
+    font-weight: 900;
+    font-size: 14px;
+}
+
+.tech-assign-btn,
+.tech-assigned-btn {
+    min-width: 92px;
+    height: 32px;
+    border-radius: 10px;
+    font-size: 12px;
     font-weight: 800;
 }
 
-.tech-assign-btn {
-    min-width: 90px;
-    height: 34px;
-    font-size: 12px;
+.tech-assigned-btn {
+    background: #e8f2ed !important;
+    color: #0f3d2e !important;
+    border: 1px solid #cfe7db !important;
+    box-shadow: none !important;
+    cursor: not-allowed !important;
+}
+
+#assignTechModal.show .custom-modal {
+    animation: modalAppear 0.28s ease both;
+}
+
+#assignTechModal.show .tech-card {
+    animation: techCardAppear 0.28s ease both;
+}
+
+#assignTechModal.show .tech-card:nth-child(1) {
+    animation-delay: 0.05s;
+}
+
+#assignTechModal.show .tech-card:nth-child(2) {
+    animation-delay: 0.09s;
+}
+
+#assignTechModal.show .tech-card:nth-child(3) {
+    animation-delay: 0.13s;
+}
+
+@keyframes modalAppear {
+    from {
+        opacity: 0;
+        transform: translateY(14px) scale(0.97);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+@keyframes techCardAppear {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
 }

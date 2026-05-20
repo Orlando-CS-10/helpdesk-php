@@ -243,7 +243,7 @@ require_once __DIR__ . '/../layouts/header.php';
                                                     <button
                                                         type="button"
                                                         class="btn-secondary small-btn admin-assign-tech-btn"
-                                                        onclick="openAssignModal(<?= (int)$ticket['id'] ?>)">
+                                                        onclick="openAssignModal(<?= (int)$ticket['id'] ?>, <?= (int)($ticket['assigned_to'] ?? 0) ?>)">
                                                         Asignar técnico
                                                     </button>
 
@@ -317,10 +317,16 @@ require_once __DIR__ . '/../layouts/header.php';
                                 </span>
                             </div>
 
-                            <p>Técnico disponible para asignación de incidencias.</p>
+                            <p>
+                                Tickets activos:
+                                <strong class="tech-load-number"><?= (int)($tech['active_tickets'] ?? 0) ?></strong>
+                            </p>
                         </div>
 
-                        <button type="submit" class="btn-primary small-btn tech-assign-btn">
+                        <button
+                            type="submit"
+                            class="btn-primary small-btn tech-assign-btn"
+                            data-tech-id="<?= (int)$tech['id'] ?>">
                             Asignar
                         </button>
                     </form>

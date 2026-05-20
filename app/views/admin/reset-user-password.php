@@ -1,4 +1,17 @@
 <?php
+$userItem = $userItem ?? [];
+
+$userId = (int)($userItem['id'] ?? 0);
+$userName = (string)($userItem['name'] ?? '');
+$userEmail = (string)($userItem['email'] ?? '');
+$userRole = (string)($userItem['role'] ?? '');
+
+if ($userId <= 0) {
+    $_SESSION['user_error'] = 'No se encontró información del usuario seleccionado.';
+    header('Location: /helpdesk-php/admin-users.php');
+    exit;
+}
+
 $title = 'Restablecer Contraseña';
 
 $activePage = 'users';
@@ -29,7 +42,11 @@ require_once __DIR__ . '/../layouts/header.php';
 
                 <div class="ticket-section-title">
                     <h3>Usuario seleccionado</h3>
-                    <p><?= htmlspecialchars($userItem['name']) ?> · <?= htmlspecialchars($userItem['email']) ?> · <?= htmlspecialchars($userItem['role']) ?></p>
+                    <p>
+                        <?= htmlspecialchars($userName) ?>
+                        · <?= htmlspecialchars($userEmail) ?>
+                        · <?= htmlspecialchars($userRole) ?>
+                    </p>
                 </div>
 
                 <?php if (!empty($_SESSION['user_error'])): ?>
@@ -40,7 +57,7 @@ require_once __DIR__ . '/../layouts/header.php';
                 <?php endif; ?>
 
                 <form action="/helpdesk-php/update-user-password.php" method="POST" class="ticket-form">
-                    <input type="hidden" name="id" value="<?= (int)$userItem['id'] ?>">
+                    <input type="hidden" name="id" value="<?= $userId ?>">
 
                     <div class="form-row">
                         <div class="form-group">
