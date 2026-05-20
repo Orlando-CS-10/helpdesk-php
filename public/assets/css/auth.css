@@ -63,17 +63,24 @@
     flex-direction: column;
     justify-content: space-between;
     color: #ffffff;
+
     background:
-        linear-gradient(145deg, rgba(16, 35, 44, 0.96), rgba(15, 61, 46, 0.94)),
-        radial-gradient(circle at top right, rgba(255, 122, 0, 0.35), transparent 36%);
+        linear-gradient(
+            rgba(15, 61, 46, 0.82),
+            rgba(16, 35, 44, 0.88)
+        ),
+        url('/helpdesk-php/public/assets/img/empresa.jpg');
+
+    background-size: cover;
+    background-position: center;
 }
 
 .login-brand-panel::after {
     content: "";
     position: absolute;
     inset: auto -60px -70px auto;
-    width: 220px;
-    height: 220px;
+    width: 120px;
+    height: 120px;
     border-radius: 50%;
     background: rgba(255, 122, 0, 0.22);
 }
@@ -250,7 +257,8 @@
 .forgot-link {
     color: #ff7a00;
     font-size: 13px;
-    font-weight: 800;
+    font-weight: 600;
+    text-align: center;
 }
 
 .forgot-link:hover {
