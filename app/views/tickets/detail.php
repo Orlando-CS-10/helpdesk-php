@@ -3,6 +3,8 @@ if (!function_exists('user')) {
     require_once __DIR__ . '/../../helpers/session.php';
 }
 
+require_once __DIR__ . '/../../helpers/business_hours.php';
+
 $ticket = $ticket ?? null;
 $messages = $messages ?? [];
 $activities = $activities ?? [];
@@ -116,23 +118,49 @@ require_once __DIR__ . '/../layouts/header.php';
 
                                 <div class="ticket-info-item">
                                     <span class="label">Tiempo de respuesta (TTA)</span>
-                                    <strong class="<?= (($ticket['tta_hours'] ?? null) === null) ? 'pending' : 'success' ?>">
-                                        <?php if (($ticket['tta_hours'] ?? null) !== null): ?>
-                                            <?= (int)$ticket['tta_hours'] ?> horas
-                                        <?php else: ?>
-                                            Pendiente
-                                        <?php endif; ?>
+                                    <?php
+                                    $firstResponseAt = $ticket['level_first_response_at']
+                                        ?? $ticket['first_response_at']
+                                        ?? null;
+
+                                    $ttaDetailLabel = formatBusinessTimeStatus(
+                                        $ticket['created_at'] ?? null,
+                                        $firstResponseAt,
+                                        empty($firstResponseAt)
+                                    );
+
+                                    $ttaDetailClass = match ($ttaDetailLabel) {
+                                        'Pendiente', 'Fuera de horario' => 'pending',
+                                        default => 'success',
+                                    };
+                                    ?>
+                                    <strong class="<?= $ttaDetailClass ?>">
+                                        <?= htmlspecialchars($ttaDetailLabel) ?>
                                     </strong>
                                 </div>
 
                                 <div class="ticket-info-item">
                                     <span class="label">Tiempo de resolución (TTR)</span>
-                                    <strong class="<?= (($ticket['ttr_hours'] ?? null) === null) ? 'pending' : 'success' ?>">
-                                        <?php if (($ticket['ttr_hours'] ?? null) !== null): ?>
-                                            <?= (int)$ticket['ttr_hours'] ?> horas
-                                        <?php else: ?>
-                                            Pendiente
-                                        <?php endif; ?>
+                                    <?php
+                                    $closedAt = $ticket['closed_at'] ?? null;
+
+                                    if (empty($closedAt) && ($ticket['status'] ?? '') === 'CERRADO') {
+                                        $closedAt = $ticket['updated_at'] ?? null;
+                                    }
+
+                                    $ttrDetailLabel = formatBusinessTimeStatus(
+                                        $ticket['created_at'] ?? null,
+                                        $closedAt,
+                                        ($ticket['status'] ?? '') !== 'CERRADO'
+                                    );
+
+                                    $ttrDetailClass = match ($ttrDetailLabel) {
+                                        'Pendiente', 'Fuera de horario' => 'pending',
+                                        default => 'success',
+                                    };
+                                    ?>
+                                    <strong class="<?= $ttrDetailClass ?>">
+                                        <?= htmlspecialchars($ttrDetailLabel) ?>
                                     </strong>
                                 </div>
 
@@ -516,23 +544,49 @@ require_once __DIR__ . '/../layouts/header.php';
 
                 <div class="ticket-info-item">
                     <span class="label">Tiempo de respuesta (TTA)</span>
-                    <strong class="<?= (($ticket['tta_hours'] ?? null) === null) ? 'pending' : 'success' ?>">
-                        <?php if (($ticket['tta_hours'] ?? null) !== null): ?>
-                            <?= (int)$ticket['tta_hours'] ?> horas
-                        <?php else: ?>
-                            Pendiente
-                        <?php endif; ?>
+                    <?php
+                    $firstResponseAt = $ticket['level_first_response_at']
+                        ?? $ticket['first_response_at']
+                        ?? null;
+
+                    $ttaDetailLabel = formatBusinessTimeStatus(
+                        $ticket['created_at'] ?? null,
+                        $firstResponseAt,
+                        empty($firstResponseAt)
+                    );
+
+                    $ttaDetailClass = match ($ttaDetailLabel) {
+                        'Pendiente', 'Fuera de horario' => 'pending',
+                        default => 'success',
+                    };
+                    ?>
+                    <strong class="<?= $ttaDetailClass ?>">
+                        <?= htmlspecialchars($ttaDetailLabel) ?>
                     </strong>
                 </div>
 
                 <div class="ticket-info-item">
                     <span class="label">Tiempo de resolución (TTR)</span>
-                    <strong class="<?= (($ticket['ttr_hours'] ?? null) === null) ? 'pending' : 'success' ?>">
-                        <?php if (($ticket['ttr_hours'] ?? null) !== null): ?>
-                            <?= (int)$ticket['ttr_hours'] ?> horas
-                        <?php else: ?>
-                            Pendiente
-                        <?php endif; ?>
+                    <?php
+                    $closedAt = $ticket['closed_at'] ?? null;
+
+                    if (empty($closedAt) && ($ticket['status'] ?? '') === 'CERRADO') {
+                        $closedAt = $ticket['updated_at'] ?? null;
+                    }
+
+                    $ttrDetailLabel = formatBusinessTimeStatus(
+                        $ticket['created_at'] ?? null,
+                        $closedAt,
+                        ($ticket['status'] ?? '') !== 'CERRADO'
+                    );
+
+                    $ttrDetailClass = match ($ttrDetailLabel) {
+                        'Pendiente', 'Fuera de horario' => 'pending',
+                        default => 'success',
+                    };
+                    ?>
+                    <strong class="<?= $ttrDetailClass ?>">
+                        <?= htmlspecialchars($ttrDetailLabel) ?>
                     </strong>
                 </div>
 

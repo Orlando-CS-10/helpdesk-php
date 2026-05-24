@@ -204,19 +204,51 @@ require_once __DIR__ . '/../layouts/header.php';
                                         </td>
 
                                         <td>
-                                            <?php if ($ticket['tta_hours'] !== null): ?>
-                                                <span class="metric-pill neutral-pill"><?= formatDecimalHoursToClock(calculateBusinessHours($ticket['created_at'], $ticket['first_response_at'])) ?></span>
-                                            <?php else: ?>
-                                                <span class="metric-pill pending-pill">Pendiente</span>
-                                            <?php endif; ?>
+                                            <?php
+                                            $firstResponseAt = $ticket['level_first_response_at']
+                                                ?? $ticket['first_response_at']
+                                                ?? null;
+
+                                            $ttaLabel = formatBusinessTimeStatus(
+                                                $ticket['created_at'] ?? null,
+                                                $firstResponseAt,
+                                                empty($firstResponseAt)
+                                            );
+
+                                            $ttaClass = match ($ttaLabel) {
+                                                'Pendiente', 'Fuera de horario' => 'pending-pill',
+                                                default => 'neutral-pill',
+                                            };
+                                            ?>
+
+                                            <span class="metric-pill <?= $ttaClass ?>">
+                                                <?= htmlspecialchars($ttaLabel) ?>
+                                            </span>
                                         </td>
 
                                         <td>
-                                            <?php if ($ticket['ttr_hours'] !== null): ?>
-                                                <span class="metric-pill neutral-pill"><?= formatDecimalHoursToClock(calculateBusinessHours($ticket['created_at'], $ticket['closed_at'])) ?></span>
-                                            <?php else: ?>
-                                                <span class="metric-pill pending-pill">Pendiente</span>
-                                            <?php endif; ?>
+                                            <?php
+                                            $closedAt = $ticket['closed_at'] ?? null;
+
+                                            if (empty($closedAt) && ($ticket['status'] ?? '') === 'CERRADO') {
+                                                $closedAt = $ticket['updated_at'] ?? null;
+                                            }
+
+                                            $ttrLabel = formatBusinessTimeStatus(
+                                                $ticket['created_at'] ?? null,
+                                                $closedAt,
+                                                ($ticket['status'] ?? '') !== 'CERRADO'
+                                            );
+
+                                            $ttrClass = match ($ttrLabel) {
+                                                'Pendiente', 'Fuera de horario' => 'pending-pill',
+                                                default => 'neutral-pill',
+                                            };
+                                            ?>
+
+                                            <span class="metric-pill <?= $ttrClass ?>">
+                                                <?= htmlspecialchars($ttrLabel) ?>
+                                            </span>
                                         </td>
 
                                         <td>

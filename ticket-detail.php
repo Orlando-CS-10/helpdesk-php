@@ -179,13 +179,14 @@ $sqlActivities = "SELECT
                     ta.actor_name,
                     ta.actor_role,
                     ta.activity_type,
+                    ta.activity_type AS action_type,
                     ta.description,
                     ta.old_value,
                     ta.new_value,
                     ta.created_at
                   FROM ticket_activity ta
                   WHERE ta.ticket_id = :ticket_id
-                  ORDER BY ta.created_at DESC, ta.id DESC";
+                  ORDER BY ta.created_at ASC, ta.id ASC";
 
 $stmtActivities = $pdo->prepare($sqlActivities);
 $stmtActivities->execute([

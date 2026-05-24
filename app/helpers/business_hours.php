@@ -80,3 +80,47 @@ function formatDecimalHoursToClock(float|int|string|null $hours): string
 
     return sprintf('%02d:%02d:%02d', $h, $m, $s);
 }
+
+function isWithinBusinessHours(?string $dateTime): bool
+{
+    if (empty($dateTime)) {
+        return false;
+    }
+
+    try {
+        $date = new DateTime($dateTime);
+    } catch (Exception $e) {
+        return false;
+    }
+
+    $dayOfWeek = (int)$date->format('N'); // 1 lunes, 7 domingo
+
+    if ($dayOfWeek > 6) {
+        return false;
+    }
+
+    $minutes = ((int)$date->format('H') * 60) + (int)$date->format('i');
+
+    $businessStart = (8 * 60) + 0;      // 08:00
+    $businessEnd = (17 * 60) + 50;      // 17:50
+
+    return $minutes >= $businessStart && $minutes <= $businessEnd;
+}
+
+function formatBusinessTimeStatus(
+    ?string $startDateTime,
+    ?string $endDateTime,
+    bool $isPending = false
+): string {
+    if ($isPending || empty($endDateTime)) {
+        return 'Pendiente';
+    }
+
+    $hours = calculateBusinessHours($startDateTime, $endDateTime);
+
+    if ($hours <= 0) {
+        return 'Fuera de horario';
+    }
+
+    return formatDecimalHoursToClock($hours);
+}
