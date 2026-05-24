@@ -19,6 +19,138 @@ if (empty($ticket) || empty($ticket['id'])) {
     exit;
 }
 
+
+/*
+|--------------------------------------------------------------------------
+| Cronómetro SLA del detalle
+|--------------------------------------------------------------------------
+| Calcula el avance del SLA con base en horas laborales. En tickets abiertos
+| usa la fecha actual; en tickets cerrados usa la fecha de cierre/actualización.
+*/
+if (!function_exists('detailIsBusinessTimeNow')) {
+    function detailIsBusinessTimeNow(): bool
+    {
+        try {
+            $now = new DateTime();
+        } catch (Exception $e) {
+            return false;
+        }
+
+        $dayOfWeek = (int)$now->format('N'); // 1 lunes, 7 domingo
+
+        if ($dayOfWeek > 6) {
+            return false;
+        }
+
+        $currentMinutes = ((int)$now->format('H') * 60) + (int)$now->format('i');
+        $startMinutes = 8 * 60;          // 08:00
+        $endMinutes = (17 * 60) + 50;    // 17:50
+
+        return $currentMinutes >= $startMinutes && $currentMinutes <= $endMinutes;
+    }
+}
+
+if (!function_exists('detailFormatClockFromHours')) {
+    function detailFormatClockFromHours(float|int|string|null $hours): string
+    {
+        if ($hours === null || $hours === '' || !is_numeric($hours)) {
+            return '00:00:00';
+        }
+
+        $totalSeconds = max(0, (int)round(((float)$hours) * 3600));
+        $h = intdiv($totalSeconds, 3600);
+        $m = intdiv($totalSeconds % 3600, 60);
+        $s = $totalSeconds % 60;
+
+        return sprintf('%02d:%02d:%02d', $h, $m, $s);
+    }
+}
+
+if (!function_exists('detailBuildSlaTimerData')) {
+    function detailBuildSlaTimerData(array $ticket): array
+    {
+        $slaHours = (float)($ticket['sla_hours'] ?? 0);
+        $createdAt = $ticket['created_at'] ?? null;
+        $status = $ticket['status'] ?? '';
+        $isClosed = $status === 'CERRADO';
+        $isPaused = !$isClosed && !detailIsBusinessTimeNow();
+        $endAt = date('Y-m-d H:i:s');
+
+        if ($isClosed) {
+            $endAt = $ticket['closed_at'] ?? $ticket['updated_at'] ?? $endAt;
+        }
+
+        $elapsedHours = 0.0;
+
+        if (!empty($createdAt) && $slaHours > 0 && function_exists('calculateBusinessHours')) {
+            $elapsedHours = (float)calculateBusinessHours($createdAt, $endAt);
+        }
+
+        $remainingHours = max(0, $slaHours - $elapsedHours);
+        $progressPercent = $slaHours > 0 ? min(100, max(0, ($elapsedHours / $slaHours) * 100)) : 0;
+
+        $phaseClass = 'sla-phase-green';
+        $phaseLabel = 'Dentro del tiempo';
+        $tooltip = 'El SLA se está contabilizando dentro del horario laboral.';
+
+        if ($progressPercent >= 100) {
+            $phaseClass = 'sla-phase-red';
+            $phaseLabel = 'SLA vencido';
+            $tooltip = 'El tiempo objetivo del SLA fue consumido.';
+        } elseif ($progressPercent >= 85) {
+            $phaseClass = 'sla-phase-red';
+            $phaseLabel = 'Próximo a vencer';
+            $tooltip = 'El SLA está cerca de llegar a su límite.';
+        } elseif ($progressPercent >= 50) {
+            $phaseClass = 'sla-phase-yellow';
+            $phaseLabel = 'En seguimiento';
+            $tooltip = 'El ticket ya consumió más de la mitad del SLA.';
+        }
+
+        if ($isPaused) {
+            $phaseClass = 'sla-phase-paused';
+            $phaseLabel = 'Tiempo pausado';
+            $tooltip = 'Tiempo pausado por tiempo no laboral';
+        }
+
+        if ($isClosed) {
+            if (($ticket['sla_met'] ?? null) !== null && (int)$ticket['sla_met'] === 1) {
+                $phaseClass = 'sla-phase-green';
+                $phaseLabel = 'SLA cumplido';
+                $tooltip = 'El ticket fue cerrado dentro del tiempo objetivo.';
+            } elseif (($ticket['sla_met'] ?? null) !== null && (int)$ticket['sla_met'] === 0) {
+                $phaseClass = 'sla-phase-red';
+                $phaseLabel = 'SLA no cumplido';
+                $tooltip = 'El ticket fue cerrado fuera del tiempo objetivo.';
+            } else {
+                $phaseClass = $progressPercent >= 100 ? 'sla-phase-red' : 'sla-phase-green';
+                $phaseLabel = 'Ticket cerrado';
+                $tooltip = 'El ticket ya fue finalizado.';
+            }
+        }
+
+        if ($slaHours <= 0 || empty($createdAt)) {
+            $phaseClass = 'sla-phase-paused';
+            $phaseLabel = 'SLA no definido';
+            $tooltip = 'Este ticket no tiene un SLA objetivo válido.';
+        }
+
+        return [
+            'sla_hours' => $slaHours,
+            'elapsed_hours' => $elapsedHours,
+            'remaining_hours' => $remainingHours,
+            'progress_percent' => $progressPercent,
+            'phase_class' => $phaseClass,
+            'phase_label' => $phaseLabel,
+            'tooltip' => $tooltip,
+            'is_paused' => $isPaused,
+            'is_closed' => $isClosed,
+        ];
+    }
+}
+
+$slaTimer = detailBuildSlaTimerData($ticket);
+
 $title = 'Detalle del Ticket';
 
 $isAdminView = (user()['role'] ?? '') === 'ADMIN';
@@ -48,6 +180,151 @@ $adminTopbarButtons = [
 
 require_once __DIR__ . '/../layouts/header.php';
 ?>
+
+<style>
+/* Cronómetro SLA compacto del detalle */
+.sla-timer-card {
+    margin-bottom: 16px;
+    padding: 16px;
+    border: 1px solid #e7edf4;
+    border-radius: 18px;
+    background: #ffffff;
+    box-shadow: 0 10px 26px rgba(15, 61, 46, 0.05);
+}
+
+.sla-timer-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 14px;
+}
+
+.sla-timer-header h3 {
+    margin: 0;
+    color: #0f172a;
+    font-size: 18px;
+    line-height: 1.2;
+}
+
+.sla-timer-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 6px 10px;
+    border-radius: 999px;
+    border: 1px solid transparent;
+    font-size: 11px;
+    font-weight: 800;
+    white-space: nowrap;
+}
+
+.sla-timer-bar {
+    width: 100%;
+    height: 10px;
+    overflow: hidden;
+    border-radius: 999px;
+    background: #edf2f7;
+}
+
+.sla-timer-bar-fill {
+    height: 100%;
+    width: 0;
+    border-radius: 999px;
+    transition: width 0.35s ease, background 0.35s ease;
+}
+
+.sla-timer-percent {
+    margin-top: 7px;
+    text-align: right;
+    color: #64748b;
+    font-size: 12px;
+    font-weight: 800;
+}
+
+.sla-timer-times {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-top: 14px;
+}
+
+.sla-time-box {
+    padding: 11px 12px;
+    border: 1px solid #e7edf4;
+    border-radius: 14px;
+    background: #f8fafc;
+}
+
+.sla-time-box span {
+    display: block;
+    margin-bottom: 5px;
+    color: #64748b;
+    font-size: 11px;
+    font-weight: 700;
+}
+
+.sla-time-box strong {
+    display: block;
+    color: #0f172a;
+    font-size: 16px;
+    letter-spacing: -0.2px;
+}
+
+.sla-timer-note {
+    margin: 12px 0 0;
+    color: #475569;
+    font-size: 12px;
+    line-height: 1.45;
+}
+
+.sla-phase-green {
+    background: #dcfce7;
+    color: #166534;
+    border-color: #86efac;
+}
+
+.sla-phase-yellow {
+    background: #fef3c7;
+    color: #92400e;
+    border-color: #fcd34d;
+}
+
+.sla-phase-red {
+    background: #fee2e2;
+    color: #b91c1c;
+    border-color: #fca5a5;
+}
+
+.sla-phase-paused {
+    background: #e5e7eb;
+    color: #4b5563;
+    border-color: #d1d5db;
+}
+
+.sla-timer-bar-fill.sla-phase-green {
+    background: linear-gradient(90deg, #22c55e, #16a34a);
+}
+
+.sla-timer-bar-fill.sla-phase-yellow {
+    background: linear-gradient(90deg, #f59e0b, #d97706);
+}
+
+.sla-timer-bar-fill.sla-phase-red {
+    background: linear-gradient(90deg, #ef4444, #dc2626);
+}
+
+.sla-timer-bar-fill.sla-phase-paused {
+    background: linear-gradient(90deg, #9ca3af, #6b7280);
+}
+
+@media (max-width: 900px) {
+    .sla-timer-times {
+        grid-template-columns: 1fr;
+    }
+}
+</style>
+
 
 <?php if ($isAdminView): ?>
 <div class="admin-shell">
@@ -383,6 +660,56 @@ require_once __DIR__ . '/../layouts/header.php';
 
                 <!-- ============ SIDEBAR DERECHO CLIENTE ============ -->
                 <aside class="ticket-client-sidebar">
+
+                    <div
+                        class="card sla-timer-card"
+                        id="slaTimerCard"
+                        data-sla-seconds="<?= (int)round(($slaTimer['sla_hours'] ?? 0) * 3600) ?>"
+                        data-elapsed-seconds="<?= (int)round(($slaTimer['elapsed_hours'] ?? 0) * 3600) ?>"
+                        data-is-closed="<?= !empty($slaTimer['is_closed']) ? '1' : '0' ?>"
+                        title="<?= htmlspecialchars($slaTimer['tooltip'] ?? '') ?>"
+                    >
+                        <div class="sla-timer-header">
+                            <h3>Cronómetro SLA</h3>
+                            <span class="sla-timer-badge <?= htmlspecialchars($slaTimer['phase_class'] ?? 'sla-phase-paused') ?>" id="slaTimerBadge">
+                                <?= htmlspecialchars($slaTimer['phase_label'] ?? 'Tiempo pausado') ?>
+                            </span>
+                        </div>
+
+                        <div class="sla-timer-bar">
+                            <div
+                                class="sla-timer-bar-fill <?= htmlspecialchars($slaTimer['phase_class'] ?? 'sla-phase-paused') ?>"
+                                id="slaTimerBarFill"
+                                style="width: <?= number_format((float)($slaTimer['progress_percent'] ?? 0), 2, '.', '') ?>%;"
+                            ></div>
+                        </div>
+
+                        <div class="sla-timer-percent" id="slaTimerPercent">
+                            <?= number_format((float)($slaTimer['progress_percent'] ?? 0), 1) ?>%
+                        </div>
+
+                        <div class="sla-timer-times">
+                            <div class="sla-time-box">
+                                <span>Tiempo consumido</span>
+                                <strong id="slaTimerElapsed"><?= htmlspecialchars(detailFormatClockFromHours($slaTimer['elapsed_hours'] ?? 0)) ?></strong>
+                            </div>
+
+                            <div class="sla-time-box">
+                                <span>Tiempo restante</span>
+                                <strong id="slaTimerRemaining"><?= htmlspecialchars(detailFormatClockFromHours($slaTimer['remaining_hours'] ?? 0)) ?></strong>
+                            </div>
+                        </div>
+
+                        <p class="sla-timer-note" id="slaTimerNote">
+                            <?= !empty($slaTimer['is_closed'])
+                                ? 'El ticket está cerrado, por lo que el conteo del SLA ya finalizó.'
+                                : (!empty($slaTimer['is_paused'])
+                                    ? 'El conteo del SLA está pausado porque ahora no es horario laboral.'
+                                    : 'El SLA se está contabilizando dentro del horario laboral.')
+                            ?>
+                        </p>
+                    </div>
+
                     <div class="card ticket-client-card">
                         <div class="ticket-client-card-header">
                             <h3>Información del cliente</h3>
@@ -943,6 +1270,105 @@ require_once __DIR__ . '/../layouts/header.php';
 </div>
 
 <script>
+
+/**
+ * Cronómetro SLA visual.
+ * Incrementa solo si el ticket está abierto y el navegador está dentro del horario laboral.
+ */
+function formatSlaSeconds(totalSeconds) {
+    totalSeconds = Math.max(0, Math.round(Number(totalSeconds) || 0));
+    const h = Math.floor(totalSeconds / 3600);
+    const m = Math.floor((totalSeconds % 3600) / 60);
+    const s = totalSeconds % 60;
+
+    return String(h).padStart(2, '0') + ':' + String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
+}
+
+function isBrowserBusinessTime() {
+    const now = new Date();
+    const day = now.getDay(); // 0 domingo, 6 sábado
+
+    if (day === 0) {
+        return false;
+    }
+
+    const minutes = now.getHours() * 60 + now.getMinutes();
+    const start = 8 * 60;
+    const end = 17 * 60 + 50;
+
+    return minutes >= start && minutes <= end;
+}
+
+function updateSlaTimerVisual() {
+    const card = document.getElementById('slaTimerCard');
+    const badge = document.getElementById('slaTimerBadge');
+    const bar = document.getElementById('slaTimerBarFill');
+    const percentText = document.getElementById('slaTimerPercent');
+    const elapsedText = document.getElementById('slaTimerElapsed');
+    const remainingText = document.getElementById('slaTimerRemaining');
+    const note = document.getElementById('slaTimerNote');
+
+    if (!card || !badge || !bar || !percentText || !elapsedText || !remainingText || !note) {
+        return;
+    }
+
+    const isClosed = card.dataset.isClosed === '1';
+    const slaSeconds = Math.max(0, Number(card.dataset.slaSeconds || 0));
+    let elapsedSeconds = Math.max(0, Number(card.dataset.elapsedSeconds || 0));
+
+    if (!isClosed && isBrowserBusinessTime() && slaSeconds > 0) {
+        elapsedSeconds += 1;
+        card.dataset.elapsedSeconds = String(elapsedSeconds);
+    }
+
+    const remainingSeconds = Math.max(0, slaSeconds - elapsedSeconds);
+    const percent = slaSeconds > 0 ? Math.min(100, Math.max(0, (elapsedSeconds / slaSeconds) * 100)) : 0;
+
+    let phaseClass = 'sla-phase-green';
+    let label = 'Dentro del tiempo';
+    let message = 'El SLA se está contabilizando dentro del horario laboral.';
+    let tooltip = message;
+
+    if (!isClosed && !isBrowserBusinessTime()) {
+        phaseClass = 'sla-phase-paused';
+        label = 'Tiempo pausado';
+        message = 'El conteo del SLA está pausado porque ahora no es horario laboral.';
+        tooltip = 'Tiempo pausado por tiempo no laboral';
+    } else if (percent >= 100) {
+        phaseClass = 'sla-phase-red';
+        label = 'SLA vencido';
+        message = isClosed ? 'El ticket está cerrado, por lo que el conteo del SLA ya finalizó.' : 'El SLA llegó a su límite de tiempo.';
+        tooltip = 'El tiempo objetivo del SLA fue consumido.';
+    } else if (percent >= 85) {
+        phaseClass = 'sla-phase-red';
+        label = 'Próximo a vencer';
+        message = isClosed ? 'El ticket está cerrado, por lo que el conteo del SLA ya finalizó.' : 'El ticket está cerca de consumir el SLA.';
+        tooltip = 'El SLA está cerca de llegar a su límite.';
+    } else if (percent >= 50) {
+        phaseClass = 'sla-phase-yellow';
+        label = 'En seguimiento';
+        message = isClosed ? 'El ticket está cerrado, por lo que el conteo del SLA ya finalizó.' : 'El ticket ya consumió más de la mitad del SLA.';
+        tooltip = 'El ticket ya consumió más de la mitad del SLA.';
+    }
+
+    if (isClosed) {
+        message = 'El ticket está cerrado, por lo que el conteo del SLA ya finalizó.';
+    }
+
+    badge.className = 'sla-timer-badge ' + phaseClass;
+    bar.className = 'sla-timer-bar-fill ' + phaseClass;
+    badge.textContent = isClosed ? badge.textContent : label;
+    bar.style.width = percent.toFixed(2) + '%';
+    percentText.textContent = percent.toFixed(1) + '%';
+    elapsedText.textContent = formatSlaSeconds(elapsedSeconds);
+    remainingText.textContent = formatSlaSeconds(remainingSeconds);
+    note.textContent = message;
+    card.setAttribute('title', tooltip);
+}
+
+updateSlaTimerVisual();
+setInterval(updateSlaTimerVisual, 1000);
+
 let deleteMessageId = null;
 let closeTicketId = null;
 
