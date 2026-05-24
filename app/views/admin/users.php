@@ -1,5 +1,10 @@
 <?php
+$search = $search ?? ($_GET['search'] ?? '');
+$role = $role ?? ($_GET['role'] ?? '');
+$users = $users ?? [];
+
 $title = 'Gestión de Usuarios';
+
 
 $activePage = 'users';
 $pageTitle = 'Gestión de Usuarios';

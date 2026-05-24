@@ -1,4 +1,12 @@
 <?php
+$userItem = $userItem ?? null;
+
+if (!is_array($userItem) || empty($userItem['id'])) {
+    $_SESSION['user_error'] = 'No se encontró información del usuario seleccionado.';
+    header('Location: /helpdesk-php/admin-users.php');
+    exit;
+}
+
 $title = 'Editar Usuario';
 
 $activePage = 'users';

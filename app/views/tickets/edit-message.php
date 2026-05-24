@@ -1,6 +1,20 @@
 <?php
 require_once __DIR__ . '/../../helpers/session.php';
 
+$messageData = $messageData ?? null;
+
+if (empty($messageData) || empty($messageData['id'])) {
+    $_SESSION['ticket_error'] = 'No se encontró información del mensaje.';
+    header('Location: /helpdesk-php/home.php');
+    exit;
+}
+
+$messageData['ticket_id'] = $messageData['ticket_id'] ?? 0;
+$messageData['name'] = $messageData['name'] ?? 'Usuario';
+$messageData['role'] = $messageData['role'] ?? '';
+$messageData['created_at'] = $messageData['created_at'] ?? date('Y-m-d H:i:s');
+$messageData['message'] = $messageData['message'] ?? '';
+
 $title = 'Editar mensaje';
 require_once __DIR__ . '/../layouts/header.php';
 ?>

@@ -3,6 +3,21 @@ require_once __DIR__ . '/../../helpers/session.php';
 requireRole('ADMIN');
 
 $title = 'Panel del Administrador';
+/*
+|--------------------------------------------------------------------------
+| Valores por defecto del dashboard
+|--------------------------------------------------------------------------
+| Evita errores si esta vista se abre sin que el controlador haya enviado
+| previamente los indicadores.
+*/
+$openTickets = $openTickets ?? 0;
+$inProgressTickets = $inProgressTickets ?? 0;
+$closedTickets = $closedTickets ?? 0;
+$avgRating = $avgRating ?? 0;
+$avgTTA = $avgTTA ?? 0;
+$avgTTR = $avgTTR ?? 0;
+$slaPercent = $slaPercent ?? 0;
+
 
 /*
 |--------------------------------------------------------------------------

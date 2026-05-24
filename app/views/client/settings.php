@@ -1,6 +1,13 @@
 <?php
 require_once __DIR__ . '/../../helpers/session.php';
 
+requireLogin();
+
+$userData = $userData ?? user();
+$userData['name'] = $userData['name'] ?? '';
+$userData['email'] = $userData['email'] ?? '';
+$userData['role'] = $userData['role'] ?? '';
+
 $title = 'Ajustes';
 require_once __DIR__ . '/../layouts/header.php';
 ?>

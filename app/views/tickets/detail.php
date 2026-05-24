@@ -1,4 +1,22 @@
 <?php
+if (!function_exists('user')) {
+    require_once __DIR__ . '/../../helpers/session.php';
+}
+
+$ticket = $ticket ?? null;
+$messages = $messages ?? [];
+$activities = $activities ?? [];
+$clientTickets = $clientTickets ?? [];
+$clientInfo = $clientInfo ?? [];
+$clientStats = $clientStats ?? [];
+$feedback = $feedback ?? null;
+
+if (empty($ticket) || empty($ticket['id'])) {
+    $_SESSION['ticket_error'] = 'No se encontró información del ticket.';
+    header('Location: /helpdesk-php/home.php');
+    exit;
+}
+
 $title = 'Detalle del Ticket';
 
 $isAdminView = (user()['role'] ?? '') === 'ADMIN';
