@@ -1,6 +1,8 @@
 <?php
 
-function getSlaStatusLabel($ticket): string
+require_once __DIR__ . '/business_hours.php';
+
+function getSlaStatusLabel(array $ticket): string
 {
     if (($ticket['status'] ?? '') === 'CERRADO') {
         if (isset($ticket['sla_met']) && (int)$ticket['sla_met'] === 1) {
@@ -14,24 +16,36 @@ function getSlaStatusLabel($ticket): string
         return 'Pendiente';
     }
 
-    $createdAt = new DateTime($ticket['created_at']);
-    $now = new DateTime();
+    try {
+        $createdAt = $ticket['created_at'];
+        $now = date('Y-m-d H:i:s');
 
-    $elapsedHours = ($now->getTimestamp() - $createdAt->getTimestamp()) / 3600;
-    $slaHours = (float)$ticket['sla_hours'];
+        /*
+        |--------------------------------------------------------------------------
+        | SLA en horas laborales
+        |--------------------------------------------------------------------------
+        | Usa el horario definido en business_hours.php:
+        | lunes a sábado, 08:00 am a 05:50 pm.
+        */
+        $elapsedHours = calculateBusinessHours($createdAt, $now);
+        $slaHours = (float)$ticket['sla_hours'];
 
-    if ($elapsedHours >= $slaHours) {
-        return 'Vencido';
+        if ($elapsedHours >= $slaHours) {
+            return 'Vencido';
+        }
+
+        if ($elapsedHours >= ($slaHours * 0.75)) {
+            return 'Por vencer';
+        }
+
+        return 'Dentro del SLA';
+
+    } catch (Exception $e) {
+        return 'Pendiente';
     }
-
-    if ($elapsedHours >= ($slaHours * 0.75)) {
-        return 'Por vencer';
-    }
-
-    return 'Dentro del SLA';
 }
 
-function getSlaStatusClass($ticket): string
+function getSlaStatusClass(array $ticket): string
 {
     $label = getSlaStatusLabel($ticket);
 

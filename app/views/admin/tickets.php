@@ -1,6 +1,10 @@
 <?php
-function prettyStatus($status)
+function prettyStatus(?string $status): string
 {
+    if ($status === null || $status === '') {
+        return 'Sin estado';
+    }
+
     return [
         'ABIERTO' => 'Abierto',
         'EN_PROCESO' => 'En proceso',
