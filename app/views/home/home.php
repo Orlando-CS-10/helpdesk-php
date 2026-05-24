@@ -5,6 +5,9 @@ $title = 'Inicio - Mesa de Ayuda';
 // Incluye el encabezado general del sitio
 require_once __DIR__ . '/../layouts/header.php';
 require_once __DIR__ . '/../../helpers/session.php';
+
+$unreadNotifications = $unreadNotifications ?? 0;
+$notifications = $notifications ?? [];
 ?>
 
 <!-- ============================= -->
@@ -28,39 +31,77 @@ require_once __DIR__ . '/../../helpers/session.php';
             <div class="header-user-tools">
 
                 <div class="notification-menu">
-                    <button class="notification-trigger" type="button" onclick="toggleNotificationMenu()">
+                    <button
+                        class="notification-trigger"
+                        type="button"
+                        onclick="toggleNotificationMenu()"
+                        aria-label="Abrir notificaciones">
                         <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" viewBox="0 0 24 24">
                             <path d="M12 22a2.5 2.5 0 0 0 2.45-2h-4.9A2.5 2.5 0 0 0 12 22zm6-6V11a6 6 0 1 0-12 0v5L4 18v1h16v-1l-2-2z" />
                         </svg>
 
-                        <?php if ($unreadNotifications > 0): ?>
-                            <span class="notification-badge"><?= $unreadNotifications ?></span>
+                        <?php if ((int)$unreadNotifications > 0): ?>
+                            <span class="notification-badge"><?= (int)$unreadNotifications ?></span>
                         <?php endif; ?>
                     </button>
 
                     <div class="notification-dropdown" id="notificationDropdown">
                         <div class="notification-dropdown-header">
-                            <h3>Notificaciones</h3>
-                            <span><?= $unreadNotifications ?> sin leer</span>
+                            <div class="notification-title-block">
+                                <h3>Notificaciones</h3>
+                                <p>Últimos movimientos de tus tickets.</p>
+                            </div>
+
+                            <span class="notification-unread-chip">
+                                <?= (int)$unreadNotifications ?> sin leer
+                            </span>
+                        </div>
+
+                        <div class="notification-dropdown-actions">
+                            <form action="/helpdesk-php/mark-all-notifications-read.php" method="POST">
+                                <button type="submit" class="notification-action-btn">
+                                    Marcar todo como leído
+                                </button>
+                            </form>
+
+                            <form
+                                action="/helpdesk-php/delete-read-notifications.php"
+                                method="POST"
+                                onsubmit="return confirm('¿Eliminar las notificaciones leídas?');">
+                                <button type="submit" class="notification-action-btn danger">
+                                    Eliminar leídas
+                                </button>
+                            </form>
                         </div>
 
                         <div class="notification-dropdown-list">
                             <?php if (!empty($notifications)): ?>
                                 <?php foreach ($notifications as $notification): ?>
+                                    <?php
+                                    $isUnread = (int)($notification['is_read'] ?? 0) === 0;
+                                    $notificationUrl = !empty($notification['related_ticket_id'])
+                                        ? '/helpdesk-php/ticket-detail.php?id=' . (int)$notification['related_ticket_id']
+                                        : '#';
+                                    ?>
                                     <a
-                                        class="notification-item <?= (int)$notification['is_read'] === 0 ? 'unread' : '' ?>"
-                                        href="<?= !empty($notification['related_ticket_id']) ? '/helpdesk-php/ticket-detail.php?id=' . (int)$notification['related_ticket_id'] : '#' ?>">
-                                        <div class="notification-item-top">
-                                            <strong><?= htmlspecialchars($notification['title']) ?></strong>
-                                            <span><?= date('d/m H:i', strtotime($notification['created_at'])) ?></span>
-                                        </div>
+                                        class="notification-item <?= $isUnread ? 'unread' : '' ?>"
+                                        href="<?= htmlspecialchars($notificationUrl) ?>">
+                                        <span class="notification-state-dot <?= $isUnread ? 'active' : '' ?>"></span>
 
-                                        <p><?= htmlspecialchars($notification['message']) ?></p>
+                                        <div class="notification-item-body">
+                                            <div class="notification-item-top">
+                                                <strong><?= htmlspecialchars($notification['title'] ?? 'Notificación') ?></strong>
+                                                <span><?= htmlspecialchars(date('d/m H:i', strtotime($notification['created_at'] ?? 'now'))) ?></span>
+                                            </div>
+
+                                            <p><?= htmlspecialchars($notification['message'] ?? '') ?></p>
+                                        </div>
                                     </a>
                                 <?php endforeach; ?>
                             <?php else: ?>
                                 <div class="notification-empty">
-                                    No tienes notificaciones.
+                                    <strong>Sin notificaciones</strong>
+                                    <p>Cuando ocurra algo importante en tus tickets, aparecerá aquí.</p>
                                 </div>
                             <?php endif; ?>
                         </div>
@@ -472,18 +513,8 @@ require_once __DIR__ . '/../../helpers/session.php';
             userDropdown.classList.remove('show');
         }
 
-        notificationDropdown.classList.toggle('show');
-
-        if (notificationDropdown.classList.contains('show')) {
-            fetch('/helpdesk-php/mark-notifications-read.php')
-                .then(response => response.json())
-                .then(() => {
-                    const badge = document.querySelector('.notification-badge');
-                    if (badge) {
-                        badge.remove();
-                    }
-                })
-                .catch(() => {});
+        if (notificationDropdown) {
+            notificationDropdown.classList.toggle('show');
         }
     }
 
@@ -494,11 +525,11 @@ require_once __DIR__ . '/../../helpers/session.php';
         const userDropdown = document.getElementById('userDropdown');
         const notificationDropdown = document.getElementById('notificationDropdown');
 
-        if (userMenu && !userMenu.contains(event.target)) {
+        if (userMenu && userDropdown && !userMenu.contains(event.target)) {
             userDropdown.classList.remove('show');
         }
 
-        if (notificationMenu && !notificationMenu.contains(event.target)) {
+        if (notificationMenu && notificationDropdown && !notificationMenu.contains(event.target)) {
             notificationDropdown.classList.remove('show');
         }
     });
