@@ -17,6 +17,39 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     exit;
 }
 
+function redirectWithTicketError(string $message): void
+{
+    $_SESSION['ticket_error'] = $message;
+    header('Location: /helpdesk-php/admin-tickets.php');
+    exit;
+}
+
+function redirectWithTicketSuccess(string $message): void
+{
+    $_SESSION['ticket_success'] = $message;
+    header('Location: /helpdesk-php/admin-tickets.php');
+    exit;
+}
+
+function safeCreateTicketActivity(PDO $pdo, int $ticketId, int $userId, string $userName, string $userRole, string $actionType, string $description, $oldValue = null, $newValue = null): void
+{
+    try {
+        createTicketActivity(
+            $pdo,
+            $ticketId,
+            $userId,
+            $userName,
+            $userRole,
+            $actionType,
+            $description,
+            $oldValue,
+            $newValue
+        );
+    } catch (Throwable $e) {
+        error_log('[ticket_activity] No se pudo registrar actividad: ' . $e->getMessage());
+    }
+}
+
 $ticketId = isset($_POST['ticket_id']) ? (int) $_POST['ticket_id'] : 0;
 $status = trim($_POST['status'] ?? '');
 $assignedToRaw = trim($_POST['assigned_to'] ?? '');
@@ -24,24 +57,21 @@ $assignedToRaw = trim($_POST['assigned_to'] ?? '');
 $allowedStatus = ['ABIERTO', 'EN_PROCESO', 'RESPONDIDO', 'CERRADO'];
 
 if ($ticketId <= 0) {
-    $_SESSION['ticket_error'] = 'Ticket inválido.';
-    header('Location: /helpdesk-php/admin-tickets.php');
-    exit;
+    redirectWithTicketError('Ticket inválido.');
 }
 
 if (!in_array($status, $allowedStatus, true)) {
-    $_SESSION['ticket_error'] = 'Estado no válido.';
-    header('Location: /helpdesk-php/admin-tickets.php');
-    exit;
+    redirectWithTicketError('Estado no válido.');
 }
 
 $assignedTo = null;
 $newTechLevel = null;
+$selectedTechName = null;
 
 if ($assignedToRaw !== '') {
     $assignedTo = (int)$assignedToRaw;
 
-    $sqlTech = "SELECT id, tech_level
+    $sqlTech = "SELECT id, name, tech_level
                 FROM users
                 WHERE id = :id
                   AND role = 'TECH'
@@ -53,24 +83,29 @@ if ($assignedToRaw !== '') {
     $techExists = $stmtTech->fetch(PDO::FETCH_ASSOC);
 
     if (!$techExists) {
-        $_SESSION['ticket_error'] = 'El técnico seleccionado no es válido.';
-        header('Location: /helpdesk-php/admin-tickets.php');
-        exit;
+        redirectWithTicketError('El técnico seleccionado no es válido.');
     }
 
     $newTechLevel = !empty($techExists['tech_level']) ? (int)$techExists['tech_level'] : 1;
+    $selectedTechName = $techExists['name'] ?? null;
+
+    if ($newTechLevel < 1 || $newTechLevel > 3) {
+        redirectWithTicketError('El nivel del técnico seleccionado no es válido.');
+    }
 }
 
 $sqlTicket = "SELECT 
-                  id, 
-                  status, 
-                  assigned_to,
-                  support_level,
-                  level_started_at,
-                  level_first_response_at,
-                  created_at
-              FROM tickets
-              WHERE id = :ticket_id
+                  t.id, 
+                  t.status, 
+                  t.assigned_to,
+                  t.support_level,
+                  t.level_started_at,
+                  t.level_first_response_at,
+                  t.created_at,
+                  u.tech_level AS assigned_tech_level
+              FROM tickets t
+              LEFT JOIN users u ON u.id = t.assigned_to
+              WHERE t.id = :ticket_id
               LIMIT 1";
 
 $stmtTicket = $pdo->prepare($sqlTicket);
@@ -78,62 +113,93 @@ $stmtTicket->execute(['ticket_id' => $ticketId]);
 $ticket = $stmtTicket->fetch(PDO::FETCH_ASSOC);
 
 if (!$ticket) {
-    $_SESSION['ticket_error'] = 'El ticket no existe.';
-    header('Location: /helpdesk-php/admin-tickets.php');
-    exit;
+    redirectWithTicketError('El ticket no existe.');
 }
 
 if (($ticket['status'] ?? '') === 'CERRADO') {
-    $_SESSION['ticket_error'] = 'No se puede modificar un ticket cerrado.';
-    header('Location: /helpdesk-php/admin-tickets.php');
-    exit;
+    redirectWithTicketError('No se puede modificar un ticket cerrado.');
+}
+
+$oldAssigned = $ticket['assigned_to'] !== null ? (string)$ticket['assigned_to'] : null;
+$newAssigned = $assignedTo !== null ? (string)$assignedTo : null;
+
+$assignedTechLevel = !empty($ticket['assigned_tech_level']) ? (int)$ticket['assigned_tech_level'] : 0;
+$storedSupportLevel = !empty($ticket['support_level']) ? (int)$ticket['support_level'] : 0;
+
+/*
+|--------------------------------------------------------------------------
+| Nivel actual real
+|--------------------------------------------------------------------------
+| Si el ticket ya tiene técnico asignado, manda el nivel del técnico.
+| Si no tiene técnico asignado, se considera 0 para permitir la primera asignación.
+*/
+$oldSupportLevel = $oldAssigned !== null
+    ? ($assignedTechLevel > 0 ? $assignedTechLevel : ($storedSupportLevel > 0 ? $storedSupportLevel : 1))
+    : 0;
+
+$finalSupportLevel = $newTechLevel ?? ($oldSupportLevel > 0 ? $oldSupportLevel : 1);
+
+$assignmentChanged = $oldAssigned !== $newAssigned;
+$levelChanged = $assignmentChanged && $newTechLevel !== null && $newTechLevel !== $oldSupportLevel;
+
+/*
+|--------------------------------------------------------------------------
+| Validación de escalamiento / desescalamiento también en backend
+|--------------------------------------------------------------------------
+| Evita saltar de nivel 1 a nivel 3 y evita bajar de nivel 2/3 a técnicos inferiores.
+*/
+if ($newTechLevel !== null && $oldAssigned !== null && $oldSupportLevel > 0) {
+    if ($newTechLevel < $oldSupportLevel) {
+        redirectWithTicketError('No puedes desescalar a un técnico inferior.');
+    }
+
+    if ($newTechLevel > $oldSupportLevel + 1) {
+        redirectWithTicketError('No puedes escalar a este nivel. Primero asigna a un técnico del nivel intermedio.');
+    }
 }
 
 try {
     $pdo->beginTransaction();
 
-    $oldAssigned = $ticket['assigned_to'] !== null ? (string)$ticket['assigned_to'] : null;
-    $newAssigned = $assignedTo !== null ? (string)$assignedTo : null;
-
-    $oldSupportLevel = !empty($ticket['support_level']) ? (int)$ticket['support_level'] : 1;
-    $finalSupportLevel = $newTechLevel ?? $oldSupportLevel;
-
-    $assignmentChanged = $oldAssigned !== $newAssigned;
-    $levelChanged = $assignmentChanged && $newTechLevel !== null && $newTechLevel !== $oldSupportLevel;
-
     /*
     |--------------------------------------------------------------------------
     | Si el ticket cambia de nivel, guardamos el nivel anterior en historial
     |--------------------------------------------------------------------------
+    | El historial es complementario. Si la tabla no existe o tiene una restricción
+    | diferente, no debe bloquear la asignación del técnico.
     */
-    if ($levelChanged) {
-        $historyStmt = $pdo->prepare("
-            INSERT INTO ticket_level_history (
-                ticket_id,
-                technician_id,
-                support_level,
-                level_started_at,
-                level_first_response_at,
-                level_finished_at,
-                result
-            ) VALUES (
-                :ticket_id,
-                :technician_id,
-                :support_level,
-                :level_started_at,
-                :level_first_response_at,
-                NOW(),
-                'ESCALADO'
-            )
-        ");
+    if ($levelChanged && $oldAssigned !== null && $oldSupportLevel > 0) {
+        try {
+            $historyStmt = $pdo->prepare("
+                INSERT INTO ticket_level_history (
+                    ticket_id,
+                    technician_id,
+                    support_level,
+                    level_started_at,
+                    level_first_response_at,
+                    level_finished_at,
+                    result
+                ) VALUES (
+                    :ticket_id,
+                    :technician_id,
+                    :support_level,
+                    :level_started_at,
+                    :level_first_response_at,
+                    NOW(),
+                    'ESCALADO'
+                )
+            ");
 
-        $historyStmt->execute([
-            'ticket_id' => $ticketId,
-            'technician_id' => $ticket['assigned_to'] ?? null,
-            'support_level' => $oldSupportLevel,
-            'level_started_at' => $ticket['level_started_at'] ?? $ticket['created_at'],
-            'level_first_response_at' => $ticket['level_first_response_at'] ?? null
-        ]);
+            $historyStmt->execute([
+                'ticket_id' => $ticketId,
+                'technician_id' => (int)$oldAssigned,
+                'support_level' => $oldSupportLevel,
+                'level_started_at' => $ticket['level_started_at'] ?? $ticket['created_at'],
+                'level_first_response_at' => $ticket['level_first_response_at'] ?? null
+            ]);
+        } catch (PDOException $historyError) {
+            error_log('[ticket_level_history] No se pudo guardar historial: ' . $historyError->getMessage());
+        }
     }
 
     /*
@@ -186,9 +252,10 @@ try {
     |--------------------------------------------------------------------------
     | Registrar actividad
     |--------------------------------------------------------------------------
+    | La actividad no debe romper la actualización principal del ticket.
     */
     if ($ticket['status'] !== $status) {
-        createTicketActivity(
+        safeCreateTicketActivity(
             $pdo,
             $ticketId,
             (int)$currentUser['id'],
@@ -202,9 +269,11 @@ try {
     }
 
     if ($assignmentChanged) {
-        $assignedLabel = $assignedTo === null ? 'Sin asignar' : 'Técnico ID ' . $assignedTo;
+        $assignedLabel = $assignedTo === null
+            ? 'Sin asignar'
+            : 'Técnico ' . ($selectedTechName ?: ('ID ' . $assignedTo));
 
-        createTicketActivity(
+        safeCreateTicketActivity(
             $pdo,
             $ticketId,
             (int)$currentUser['id'],
@@ -218,7 +287,7 @@ try {
     }
 
     if ($levelChanged) {
-        createTicketActivity(
+        safeCreateTicketActivity(
             $pdo,
             $ticketId,
             (int)$currentUser['id'],
@@ -233,14 +302,12 @@ try {
 
     $pdo->commit();
 
-    $_SESSION['ticket_success'] = 'El ticket fue actualizado correctamente.';
-} catch (PDOException $e) {
+    redirectWithTicketSuccess('El ticket fue actualizado correctamente.');
+} catch (Throwable $e) {
     if ($pdo->inTransaction()) {
         $pdo->rollBack();
     }
 
-    $_SESSION['ticket_error'] = 'Ocurrió un error al actualizar el ticket.';
+    error_log('[update-ticket-admin] Error al actualizar ticket: ' . $e->getMessage());
+    redirectWithTicketError('Ocurrió un error al actualizar el ticket.');
 }
-
-header('Location: /helpdesk-php/admin-tickets.php');
-exit;

@@ -1523,3 +1523,328 @@
         transform: translateY(0);
     }
 }
+
+
+/* ============================= */
+/* BLOQUEO DE ESCALAMIENTO TÉCNICO */
+/* ============================= */
+.tech-level-btn.is-locked,
+.tech-level-btn.is-locked.active {
+    background: #f1f5f9 !important;
+    color: #94a3b8 !important;
+    cursor: not-allowed !important;
+    opacity: 0.68;
+    filter: grayscale(0.35);
+}
+
+.tech-level-btn.is-locked:hover,
+.tech-level-btn.is-locked.active:hover {
+    background: #f1f5f9 !important;
+    color: #94a3b8 !important;
+    transform: none !important;
+}
+
+.tech-card.is-hidden-by-level {
+    display: none !important;
+}
+
+.tech-card.is-locked {
+    background: #f8fafc !important;
+    border-color: #cbd5e1 !important;
+    border-left-color: #94a3b8 !important;
+    border-style: dashed !important;
+    cursor: not-allowed !important;
+    opacity: 0.58;
+    filter: grayscale(0.28);
+}
+
+.tech-card.is-locked:hover {
+    transform: none !important;
+    box-shadow: none !important;
+    border-color: #cbd5e1 !important;
+    border-left-color: #94a3b8 !important;
+}
+
+.tech-card.is-locked .tech-avatar {
+    background: #64748b !important;
+}
+
+.tech-card.is-locked .tech-level-badge {
+    background: #e2e8f0 !important;
+    color: #475569 !important;
+    border-color: #cbd5e1 !important;
+}
+
+.tech-card.is-locked .tech-assign-btn,
+.tech-card.is-current-tech .tech-assign-btn,
+.tech-assign-btn:disabled {
+    background: #e5e7eb !important;
+    color: #64748b !important;
+    border: 1px solid #cbd5e1 !important;
+    box-shadow: none !important;
+    cursor: not-allowed !important;
+}
+
+.tech-card.is-locked .tech-assign-btn,
+.tech-card.is-current-tech .tech-assign-btn {
+    pointer-events: none;
+}
+
+.tech-card.is-current-tech:not(.is-locked) {
+    border-left-color: #0f3d2e;
+}
+
+/* ============================= */
+/* TOOLTIP TIPO GLOBO - BLOQUEO */
+/* ============================= */
+.tech-level-btn.is-locked,
+.tech-card.is-locked,
+.tech-card.is-current-tech {
+    position: relative;
+}
+
+.tech-level-btn.is-locked[data-tooltip]::after,
+.tech-level-btn.is-locked[data-tooltip]::before,
+.tech-card.is-locked[data-tooltip]::after,
+.tech-card.is-locked[data-tooltip]::before,
+.tech-card.is-current-tech[data-tooltip]::after,
+.tech-card.is-current-tech[data-tooltip]::before {
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transition: opacity 0.16s ease, transform 0.16s ease, visibility 0.16s ease;
+}
+
+/* Globo para pestañas de nivel */
+.tech-level-btn.is-locked[data-tooltip]:hover::after {
+    content: attr(data-tooltip);
+    position: absolute;
+    left: 50%;
+    top: calc(100% + 12px);
+    transform: translateX(-50%) translateY(4px);
+    width: max-content;
+    min-width: 230px;
+    max-width: 320px;
+    padding: 10px 12px;
+    border-radius: 13px;
+    background: #ffffff;
+    border: 1px solid #dbe3ec;
+    color: #334155;
+    box-shadow: 0 14px 30px rgba(15, 23, 42, 0.16);
+    font-size: 12px;
+    line-height: 1.45;
+    font-weight: 700;
+    text-align: center;
+    white-space: normal;
+    z-index: 99999;
+    opacity: 1;
+    visibility: visible;
+}
+
+.tech-level-btn.is-locked[data-tooltip]:hover::before {
+    content: "";
+    position: absolute;
+    left: 50%;
+    top: calc(100% + 6px);
+    width: 12px;
+    height: 12px;
+    background: #ffffff;
+    border-left: 1px solid #dbe3ec;
+    border-top: 1px solid #dbe3ec;
+    transform: translateX(-50%) rotate(45deg);
+    z-index: 99998;
+    opacity: 1;
+    visibility: visible;
+}
+
+.tech-level-btn.is-locked[data-tooltip]:hover::after {
+    transform: translateX(-50%) translateY(0);
+}
+
+/* Globo dentro de la card para que no se corte con el scroll */
+.tech-card.is-locked[data-tooltip]:hover::after,
+.tech-card.is-current-tech[data-tooltip]:hover::after {
+    content: attr(data-tooltip);
+    position: absolute;
+    right: 116px;
+    top: 50%;
+    transform: translateY(-50%) translateX(6px);
+    max-width: 240px;
+    padding: 9px 11px;
+    border-radius: 13px;
+    background: #ffffff;
+    border: 1px solid #dbe3ec;
+    color: #334155;
+    box-shadow: 0 14px 30px rgba(15, 23, 42, 0.16);
+    font-size: 12px;
+    line-height: 1.35;
+    font-weight: 700;
+    text-align: center;
+    z-index: 20;
+    opacity: 1;
+    visibility: visible;
+}
+
+.tech-card.is-locked[data-tooltip]:hover::before,
+.tech-card.is-current-tech[data-tooltip]:hover::before {
+    content: "";
+    position: absolute;
+    right: 108px;
+    top: 50%;
+    width: 12px;
+    height: 12px;
+    background: #ffffff;
+    border-right: 1px solid #dbe3ec;
+    border-bottom: 1px solid #dbe3ec;
+    transform: translateY(-50%) rotate(-45deg);
+    z-index: 21;
+    opacity: 1;
+    visibility: visible;
+}
+
+.tech-card.is-locked[data-tooltip]:hover::after,
+.tech-card.is-current-tech[data-tooltip]:hover::after {
+    transform: translateY(-50%) translateX(0);
+}
+
+@media (max-width: 720px) {
+    .tech-level-btn.is-locked[data-tooltip]:hover::after {
+        min-width: 190px;
+        max-width: 240px;
+        font-size: 11px;
+    }
+
+    .tech-card.is-locked[data-tooltip]:hover::after,
+    .tech-card.is-current-tech[data-tooltip]:hover::after {
+        right: 14px;
+        left: 14px;
+        top: calc(100% + 8px);
+        transform: none;
+        max-width: none;
+    }
+
+    .tech-card.is-locked[data-tooltip]:hover::before,
+    .tech-card.is-current-tech[data-tooltip]:hover::before {
+        display: none;
+    }
+}
+
+/* ============================= */
+/* FIX TOOLTIP POR ENCIMA DEL MODAL */
+/* ============================= */
+#assignTechModal .custom-modal,
+#assignTechModal .custom-modal-body {
+    overflow: visible !important;
+}
+
+#assignTechModal .tech-level-tabs {
+    position: relative;
+    z-index: 5000;
+    overflow: visible !important;
+}
+
+#assignTechModal .tech-list {
+    position: relative;
+    z-index: 1;
+}
+
+#assignTechModal .tech-card {
+    position: relative;
+    z-index: 1;
+}
+
+#assignTechModal .tech-card:hover {
+    z-index: 2;
+}
+
+#assignTechModal .tech-level-btn {
+    position: relative;
+}
+
+#assignTechModal .tech-level-btn.is-locked:hover {
+    z-index: 6000;
+}
+
+#assignTechModal .tech-level-btn.is-locked[data-tooltip]:hover::after,
+#assignTechModal .tech-level-btn.is-locked[data-tooltip]:hover::before {
+    z-index: 7000 !important;
+}
+
+/* ============================= */
+/* FIX FINAL: TOOLTIP OPACO Y MODAL REDONDEADO */
+/* ============================= */
+#assignTechModal .custom-modal {
+    border-radius: 18px !important;
+    overflow: hidden !important;
+    background: #ffffff !important;
+}
+
+#assignTechModal .custom-modal-header {
+    border-top-left-radius: 18px !important;
+    border-top-right-radius: 18px !important;
+}
+
+#assignTechModal .custom-modal-body {
+    overflow: visible !important;
+    background: #f8fafc !important;
+}
+
+#assignTechModal .tech-level-tabs,
+#assignTechModal .tech-level-btn {
+    overflow: visible !important;
+}
+
+#assignTechModal .tech-level-btn.is-locked,
+#assignTechModal .tech-card.is-locked {
+    opacity: 1 !important;
+    filter: none !important;
+}
+
+#assignTechModal .tech-level-btn.is-locked {
+    background: #f1f5f9 !important;
+    color: #94a3b8 !important;
+    cursor: not-allowed !important;
+}
+
+#assignTechModal .tech-level-btn.is-locked:hover {
+    background: #e2e8f0 !important;
+    color: #64748b !important;
+}
+
+#assignTechModal .tech-level-btn.is-locked[data-tooltip]:hover::after {
+    background: #ffffff !important;
+    color: #334155 !important;
+    border: 1px solid #dbe3ec !important;
+    opacity: 1 !important;
+    visibility: visible !important;
+    box-shadow: 0 18px 36px rgba(15, 23, 42, 0.22) !important;
+    z-index: 999999 !important;
+}
+
+#assignTechModal .tech-level-btn.is-locked[data-tooltip]:hover::before {
+    background: #ffffff !important;
+    border-left: 1px solid #dbe3ec !important;
+    border-top: 1px solid #dbe3ec !important;
+    opacity: 1 !important;
+    visibility: visible !important;
+    z-index: 999998 !important;
+}
+
+#assignTechModal .tech-card.is-locked[data-tooltip]:hover::after,
+#assignTechModal .tech-card.is-current-tech[data-tooltip]:hover::after {
+    background: #ffffff !important;
+    color: #334155 !important;
+    border: 1px solid #dbe3ec !important;
+    opacity: 1 !important;
+    visibility: visible !important;
+    box-shadow: 0 18px 36px rgba(15, 23, 42, 0.22) !important;
+    z-index: 999999 !important;
+}
+
+#assignTechModal .tech-card.is-locked[data-tooltip]:hover::before,
+#assignTechModal .tech-card.is-current-tech[data-tooltip]:hover::before {
+    background: #ffffff !important;
+    opacity: 1 !important;
+    visibility: visible !important;
+    z-index: 999998 !important;
+}
