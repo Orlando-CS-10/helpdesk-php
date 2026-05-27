@@ -81,6 +81,29 @@ $levelValues = dashboardChartValues($ticketsByLevel, 'total');
 $slaLabels = ['Cumplido', 'No cumplido'];
 $slaValues = [(int)$closedWithinSla, (int)$closedOutSla];
 
+$pdfTechnicians = [];
+
+try {
+    require_once __DIR__ . '/../../config/database.php';
+
+    if (isset($pdo) && $pdo instanceof PDO) {
+        $pdfTechnicianStmt = $pdo->query("
+            SELECT
+                id,
+                name,
+                COALESCE(tech_level, 1) AS tech_level
+            FROM users
+            WHERE role = 'TECH'
+              AND status = 1
+            ORDER BY COALESCE(tech_level, 1) ASC, name ASC
+        " );
+
+        $pdfTechnicians = $pdfTechnicianStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    }
+} catch (Throwable $exception) {
+    $pdfTechnicians = [];
+}
+
 require_once __DIR__ . '/../layouts/header.php';
 ?>
 
@@ -93,6 +116,82 @@ require_once __DIR__ . '/../layouts/header.php';
         <?php require_once __DIR__ . '/../layouts/admin-topbar.php'; ?>
 
         <main class="admin-content admin-dashboard-content">
+
+            <section class="admin-dashboard-export-card card">
+                <div>
+                    <span class="admin-dashboard-eyebrow">Reporte PDF</span>
+                    <h2>Exportar indicadores</h2>
+                    <p>Elige si deseas descargar el informe general de todos los técnicos o filtrar el reporte por un técnico específico.</p>
+                </div>
+
+                <button type="button" class="btn-primary admin-dashboard-export-btn" id="openExportPdfModal">
+                    <i class="fa-solid fa-file-pdf"></i>
+                    Exportar PDF
+                </button>
+            </section>
+
+            <div class="export-pdf-modal-backdrop" id="exportPdfModal" aria-hidden="true">
+                <div class="export-pdf-modal" role="dialog" aria-modal="true" aria-labelledby="exportPdfModalTitle">
+                    <form method="get" action="/helpdesk-php/export-indicators-pdf.php" target="_blank" id="exportPdfForm">
+                        <button type="button" class="export-pdf-modal-close" data-export-pdf-close aria-label="Cerrar">
+                            <i class="fa-solid fa-xmark"></i>
+                        </button>
+
+                        <div class="export-pdf-modal-header">
+                            <span class="export-pdf-modal-icon">
+                                <i class="fa-solid fa-file-pdf"></i>
+                            </span>
+                            <div>
+                                <h3 id="exportPdfModalTitle">Exportar reporte de indicadores</h3>
+                                <p>Selecciona el alcance del PDF antes de generarlo.</p>
+                            </div>
+                        </div>
+
+                        <div class="export-pdf-options">
+                            <label class="export-pdf-option active" for="exportScopeAll">
+                                <input type="radio" name="scope" value="all" id="exportScopeAll" checked>
+                                <span>
+                                    <strong>Todos los técnicos</strong>
+                                    <small>Incluye el resumen general, SLA, TTA, TTR y carga de todo el equipo.</small>
+                                </span>
+                            </label>
+
+                            <label class="export-pdf-option" for="exportScopeTechnician">
+                                <input type="radio" name="scope" value="technician" id="exportScopeTechnician">
+                                <span>
+                                    <strong>Un solo técnico</strong>
+                                    <small>Filtra las estadísticas únicamente por el técnico seleccionado.</small>
+                                </span>
+                            </label>
+                        </div>
+
+                        <div class="export-technician-select-wrap" id="exportTechnicianSelectWrap" aria-hidden="true">
+                            <label for="exportTechnicianId">Técnico</label>
+                            <select name="technician_id" id="exportTechnicianId" disabled>
+                                <option value="">Selecciona un técnico</option>
+                                <?php foreach ($pdfTechnicians as $pdfTechnician): ?>
+                                    <option value="<?= (int)$pdfTechnician['id'] ?>">
+                                        <?= htmlspecialchars($pdfTechnician['name'] ?? 'Técnico') ?> - Nivel <?= (int)($pdfTechnician['tech_level'] ?? 1) ?>
+                                    </option>
+                                <?php endforeach; ?>
+                            </select>
+                            <?php if (empty($pdfTechnicians)): ?>
+                                <small>No se encontraron técnicos activos para filtrar el reporte.</small>
+                            <?php else: ?>
+                                <small>El PDF mostrará solo tickets asignados al técnico elegido.</small>
+                            <?php endif; ?>
+                        </div>
+
+                        <div class="export-pdf-modal-actions">
+                            <button type="button" class="export-pdf-cancel-btn" data-export-pdf-close>Cancelar</button>
+                            <button type="submit" class="export-pdf-generate-btn">
+                                <i class="fa-solid fa-download"></i>
+                                Generar PDF
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
 
             <section class="admin-dashboard-hero card">
                 <div>
@@ -481,6 +580,97 @@ require_once __DIR__ . '/../layouts/header.php';
             }
         });
     }
+</script>
+
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        const openButton = document.getElementById('openExportPdfModal');
+        const modal = document.getElementById('exportPdfModal');
+        const form = document.getElementById('exportPdfForm');
+        const closeButtons = document.querySelectorAll('[data-export-pdf-close]');
+        const scopeInputs = document.querySelectorAll('input[name="scope"]');
+        const technicianWrap = document.getElementById('exportTechnicianSelectWrap');
+        const technicianSelect = document.getElementById('exportTechnicianId');
+        const optionCards = document.querySelectorAll('.export-pdf-option');
+
+        if (!openButton || !modal || !form) {
+            return;
+        }
+
+        const openModal = () => {
+            modal.classList.add('show');
+            modal.setAttribute('aria-hidden', 'false');
+            document.body.classList.add('modal-open');
+        };
+
+        const closeModal = () => {
+            modal.classList.remove('show');
+            modal.setAttribute('aria-hidden', 'true');
+            document.body.classList.remove('modal-open');
+        };
+
+        const updateScopeState = () => {
+            const selectedScope = document.querySelector('input[name="scope"]:checked')?.value || 'all';
+            const isTechnicianScope = selectedScope === 'technician';
+
+            technicianWrap?.classList.toggle('show', isTechnicianScope);
+            technicianWrap?.setAttribute('aria-hidden', isTechnicianScope ? 'false' : 'true');
+
+            if (technicianSelect) {
+                technicianSelect.disabled = !isTechnicianScope;
+
+                if (!isTechnicianScope) {
+                    technicianSelect.value = '';
+                }
+            }
+
+            optionCards.forEach((card) => {
+                const input = card.querySelector('input[name="scope"]');
+                card.classList.toggle('active', input?.checked === true);
+            });
+        };
+
+        openButton.addEventListener('click', openModal);
+
+        closeButtons.forEach((button) => {
+            button.addEventListener('click', closeModal);
+        });
+
+        modal.addEventListener('click', (event) => {
+            if (event.target === modal) {
+                closeModal();
+            }
+        });
+
+        document.addEventListener('keydown', (event) => {
+            if (event.key === 'Escape' && modal.classList.contains('show')) {
+                closeModal();
+            }
+        });
+
+        scopeInputs.forEach((input) => {
+            input.addEventListener('change', updateScopeState);
+        });
+
+        form.addEventListener('submit', (event) => {
+            const selectedScope = document.querySelector('input[name="scope"]:checked')?.value || 'all';
+
+            if (selectedScope === 'technician' && technicianSelect && technicianSelect.value === '') {
+                event.preventDefault();
+                technicianSelect.focus();
+                technicianSelect.classList.add('has-error');
+                return;
+            }
+
+            closeModal();
+        });
+
+        technicianSelect?.addEventListener('change', () => {
+            technicianSelect.classList.remove('has-error');
+        });
+
+        updateScopeState();
+    });
 </script>
 
 <?php require_once __DIR__ . '/../layouts/admin-footer.php'; ?>
