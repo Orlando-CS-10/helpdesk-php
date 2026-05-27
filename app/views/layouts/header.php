@@ -48,10 +48,11 @@ if (isLoggedIn()) {
     <link rel="stylesheet" href="/helpdesk-php/public/assets/css/layout.css?v=1">
     <link rel="stylesheet" href="/helpdesk-php/public/assets/css/admin.css?v=1">
     <link rel="stylesheet" href="/helpdesk-php/public/assets/css/tables.css?v=1">
-    <link rel="stylesheet" href="/helpdesk-php/public/assets/css/tickets.css?v=1">
+    <link rel="stylesheet" href="/helpdesk-php/public/assets/css/tickets.css?v=2">
     <link rel="stylesheet" href="/helpdesk-php/public/assets/css/notifications.css?v=1">
     <link rel="stylesheet" href="/helpdesk-php/public/assets/css/admin-dashboard.css?v=1">
     <link rel="stylesheet" href="/helpdesk-php/public/assets/css/responsive.css?v=1">
+    <link rel="stylesheet" href="/helpdesk-php/public/assets/css/create-user-modal.css?v=1">
     <script src="https://kit.fontawesome.com/b44fd2b2de.js" crossorigin="anonymous"></script>
 </head>
 

@@ -1848,3 +1848,106 @@
     visibility: visible !important;
     z-index: 999998 !important;
 }
+/* ============================= */
+/* FILTROS AVANZADOS DE TICKETS */
+/* ============================= */
+.admin-ticket-filter-form {
+    display: block;
+}
+
+.admin-ticket-filter-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 16px;
+    align-items: end;
+}
+
+.admin-ticket-filter-grid .form-group {
+    min-width: 0;
+}
+
+.admin-ticket-filter-grid .form-group-wide {
+    grid-column: span 2;
+}
+
+.admin-ticket-filter-grid label {
+    display: block;
+    margin-bottom: 8px;
+    color: #0f172a;
+    font-size: 13px;
+    font-weight: 800;
+}
+
+.admin-ticket-filter-grid input,
+.admin-ticket-filter-grid select {
+    width: 100%;
+    min-height: 42px;
+    border: 1px solid #dbe3ec;
+    border-radius: 12px;
+    background: #ffffff;
+    color: #0f172a;
+    font-size: 13px;
+    padding: 9px 12px;
+    transition: border-color 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
+}
+
+.admin-ticket-filter-grid input:focus,
+.admin-ticket-filter-grid select:focus {
+    outline: none;
+    border-color: rgba(31, 122, 90, 0.58);
+    box-shadow: 0 0 0 4px rgba(31, 122, 90, 0.10);
+}
+
+.admin-ticket-filter-grid input::placeholder {
+    color: #94a3b8;
+}
+
+.admin-ticket-filter-actions {
+    margin-top: 18px;
+    padding-top: 16px;
+    border-top: 1px solid #eef2f7;
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+}
+
+.admin-ticket-filter-actions .btn-secondary,
+.admin-ticket-filter-actions .btn-primary {
+    min-width: 112px;
+    min-height: 40px;
+    border-radius: 12px;
+    font-weight: 800;
+}
+
+@media (max-width: 1200px) {
+    .admin-ticket-filter-grid {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 900px) {
+    .admin-ticket-filter-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .admin-ticket-filter-grid .form-group-wide {
+        grid-column: span 2;
+    }
+}
+
+@media (max-width: 640px) {
+    .admin-ticket-filter-grid,
+    .admin-ticket-filter-grid .form-group-wide {
+        grid-template-columns: 1fr;
+        grid-column: span 1;
+    }
+
+    .admin-ticket-filter-actions {
+        flex-direction: column;
+    }
+
+    .admin-ticket-filter-actions .btn-secondary,
+    .admin-ticket-filter-actions .btn-primary {
+        width: 100%;
+    }
+}

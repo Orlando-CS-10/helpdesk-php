@@ -24,6 +24,13 @@ $search = $search ?? ($_GET['search'] ?? '');
 $status = $status ?? ($_GET['status'] ?? '');
 $priority = $priority ?? ($_GET['priority'] ?? '');
 $category = $category ?? ($_GET['category'] ?? '');
+$ticketCode = $ticketCode ?? ($_GET['ticket_code'] ?? '');
+$assignedTo = $assignedTo ?? ($_GET['assigned_to'] ?? '');
+$techLevel = $techLevel ?? ($_GET['tech_level'] ?? '');
+$assignmentStatus = $assignmentStatus ?? ($_GET['assignment_status'] ?? '');
+$slaStatus = $slaStatus ?? ($_GET['sla_status'] ?? '');
+$dateFrom = $dateFrom ?? ($_GET['date_from'] ?? '');
+$dateTo = $dateTo ?? ($_GET['date_to'] ?? '');
 $techUsers = $techUsers ?? [];
 
 
@@ -32,15 +39,15 @@ $techLevelByName = [];
 
 foreach ($techUsers as $tech) {
     $techId = (int)($tech['id'] ?? 0);
-    $techLevel = (int)($tech['tech_level'] ?? 1);
+    $currentTechLevel = (int)($tech['tech_level'] ?? 1);
     $techNameKey = mb_strtolower(trim((string)($tech['name'] ?? '')));
 
     if ($techId > 0) {
-        $techLevelById[$techId] = $techLevel;
+        $techLevelById[$techId] = $currentTechLevel;
     }
 
     if ($techNameKey !== '') {
-        $techLevelByName[$techNameKey] = $techLevel;
+        $techLevelByName[$techNameKey] = $currentTechLevel;
     }
 }
 
@@ -122,16 +129,26 @@ require_once __DIR__ . '/../layouts/header.php';
                     <p>Consulta y administra tickets con criterios operativos y de búsqueda.</p>
                 </div>
 
-                <form action="/helpdesk-php/admin-tickets.php" method="GET" class="ticket-form">
-                    <div class="form-row">
+                <form action="/helpdesk-php/admin-tickets.php" method="GET" class="ticket-form admin-ticket-filter-form">
+                    <div class="admin-ticket-filter-grid">
                         <div class="form-group">
+                            <label for="ticket_code">Código de ticket</label>
+                            <input
+                                type="text"
+                                id="ticket_code"
+                                name="ticket_code"
+                                value="<?= htmlspecialchars($ticketCode) ?>"
+                                placeholder="#1, #2, #3...">
+                        </div>
+
+                        <div class="form-group form-group-wide">
                             <label for="search">Buscar</label>
                             <input
                                 type="text"
                                 id="search"
                                 name="search"
                                 value="<?= htmlspecialchars($search) ?>"
-                                placeholder="Asunto, descripción o cliente">
+                                placeholder="Asunto, descripción, cliente o técnico">
                         </div>
 
                         <div class="form-group">
@@ -167,9 +184,69 @@ require_once __DIR__ . '/../layouts/header.php';
                                 <option value="OTROS" <?= $category === 'OTROS' ? 'selected' : '' ?>>Otros</option>
                             </select>
                         </div>
+
+                        <div class="form-group">
+                            <label for="assigned_to">Técnico asignado</label>
+                            <select id="assigned_to" name="assigned_to">
+                                <option value="">Todos</option>
+                                <?php foreach ($techUsers as $techFilter): ?>
+                                    <?php $techFilterId = (int)($techFilter['id'] ?? 0); ?>
+                                    <option value="<?= $techFilterId ?>" <?= (string)$assignedTo === (string)$techFilterId ? 'selected' : '' ?>>
+                                        <?= htmlspecialchars($techFilter['name'] ?? '') ?> - Nivel <?= (int)($techFilter['tech_level'] ?? 1) ?>
+                                    </option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="tech_level">Nivel técnico</label>
+                            <select id="tech_level" name="tech_level">
+                                <option value="">Todos</option>
+                                <option value="1" <?= (string)$techLevel === '1' ? 'selected' : '' ?>>Nivel 1</option>
+                                <option value="2" <?= (string)$techLevel === '2' ? 'selected' : '' ?>>Nivel 2</option>
+                                <option value="3" <?= (string)$techLevel === '3' ? 'selected' : '' ?>>Nivel 3</option>
+                            </select>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="assignment_status">Asignación</label>
+                            <select id="assignment_status" name="assignment_status">
+                                <option value="">Todos</option>
+                                <option value="ASIGNADO" <?= $assignmentStatus === 'ASIGNADO' ? 'selected' : '' ?>>Asignados</option>
+                                <option value="SIN_ASIGNAR" <?= $assignmentStatus === 'SIN_ASIGNAR' ? 'selected' : '' ?>>Sin asignar</option>
+                            </select>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="sla_status">SLA cumplido</label>
+                            <select id="sla_status" name="sla_status">
+                                <option value="">Todos</option>
+                                <option value="CUMPLIDO" <?= $slaStatus === 'CUMPLIDO' ? 'selected' : '' ?>>Cumplido</option>
+                                <option value="NO_CUMPLIDO" <?= $slaStatus === 'NO_CUMPLIDO' ? 'selected' : '' ?>>No cumplido</option>
+                                <option value="PENDIENTE" <?= $slaStatus === 'PENDIENTE' ? 'selected' : '' ?>>Pendiente</option>
+                            </select>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="date_from">Fecha desde</label>
+                            <input
+                                type="date"
+                                id="date_from"
+                                name="date_from"
+                                value="<?= htmlspecialchars($dateFrom) ?>">
+                        </div>
+
+                        <div class="form-group">
+                            <label for="date_to">Fecha hasta</label>
+                            <input
+                                type="date"
+                                id="date_to"
+                                name="date_to"
+                                value="<?= htmlspecialchars($dateTo) ?>">
+                        </div>
                     </div>
 
-                    <div class="ticket-form-actions">
+                    <div class="ticket-form-actions admin-ticket-filter-actions">
                         <a href="/helpdesk-php/admin-tickets.php" class="btn-secondary">Limpiar</a>
                         <button type="submit" class="btn-primary">Filtrar</button>
                     </div>

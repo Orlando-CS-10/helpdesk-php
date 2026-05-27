@@ -5,8 +5,10 @@ require_once __DIR__ . '/app/config/database.php';
 requireLogin();
 
 $currentUser = user();
+$currentRole = $currentUser['role'] ?? '';
+$managerRoles = ['ADMIN', 'TECH'];
 
-if (($currentUser['role'] ?? '') !== 'ADMIN') {
+if (!in_array($currentRole, $managerRoles, true)) {
     header('Location: /helpdesk-php/home.php');
     exit;
 }
@@ -24,21 +26,46 @@ $phone = trim($_POST['phone'] ?? '');
 $position = trim($_POST['position'] ?? '');
 $company = trim($_POST['company'] ?? '');
 
-$allowedRoles = ['CLIENT', 'TECH', 'ADMIN'];
+$allowedRoles = $currentRole === 'ADMIN'
+    ? ['CLIENT', 'TECH', 'ADMIN']
+    : ['CLIENT'];
 
-if ($id <= 0 || $name === '' || $email === '' || !in_array($role, $allowedRoles, true)) {
-    $_SESSION['user_error'] = 'Completa correctamente los campos obligatorios.';
+function redirectUserEdit(int $id): void
+{
     header('Location: /helpdesk-php/edit-user.php?id=' . $id);
     exit;
+}
+
+if ($id <= 0 || $name === '' || $email === '' || !in_array($role, $allowedRoles, true)) {
+    $_SESSION['user_error'] = $currentRole === 'TECH'
+        ? 'Completa correctamente los campos. Un técnico solo puede gestionar usuarios clientes.'
+        : 'Completa correctamente los campos obligatorios.';
+    redirectUserEdit($id);
 }
 
 if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
     $_SESSION['user_error'] = 'El correo no es válido.';
-    header('Location: /helpdesk-php/edit-user.php?id=' . $id);
+    redirectUserEdit($id);
+}
+
+// Verificar que el usuario exista y aplicar reglas de permisos por rol.
+$stmtTarget = $pdo->prepare("SELECT id, role FROM users WHERE id = :id LIMIT 1");
+$stmtTarget->execute(['id' => $id]);
+$targetUser = $stmtTarget->fetch(PDO::FETCH_ASSOC);
+
+if (!$targetUser) {
+    $_SESSION['user_error'] = 'El usuario seleccionado no existe.';
+    header('Location: /helpdesk-php/admin-users.php');
     exit;
 }
 
-// Verificar correo duplicado en otro usuario
+if ($currentRole === 'TECH' && ($targetUser['role'] ?? '') !== 'CLIENT') {
+    $_SESSION['user_error'] = 'No puedes editar usuarios administradores o técnicos.';
+    header('Location: /helpdesk-php/admin-users.php');
+    exit;
+}
+
+// Verificar correo duplicado en otro usuario.
 $sqlCheck = "SELECT id
              FROM users
              WHERE email = :email
@@ -55,8 +82,7 @@ $exists = $stmtCheck->fetch(PDO::FETCH_ASSOC);
 
 if ($exists) {
     $_SESSION['user_error'] = 'Ya existe otro usuario con ese correo.';
-    header('Location: /helpdesk-php/edit-user.php?id=' . $id);
-    exit;
+    redirectUserEdit($id);
 }
 
 $sql = "UPDATE users
@@ -79,5 +105,6 @@ $stmt->execute([
     'company' => $company !== '' ? $company : null
 ]);
 
+$_SESSION['user_success'] = 'Usuario actualizado correctamente.';
 header('Location: /helpdesk-php/admin-users.php');
 exit;
