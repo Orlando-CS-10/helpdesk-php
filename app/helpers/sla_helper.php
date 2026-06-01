@@ -1,5 +1,10 @@
 <?php
 
+// Todos los cálculos SLA se hacen con hora de Perú.
+if (date_default_timezone_get() !== 'America/Lima') {
+    date_default_timezone_set('America/Lima');
+}
+
 require_once __DIR__ . '/business_hours.php';
 
 function getSlaStatusLabel(array $ticket): string
@@ -18,7 +23,7 @@ function getSlaStatusLabel(array $ticket): string
 
     try {
         $createdAt = $ticket['created_at'];
-        $now = date('Y-m-d H:i:s');
+        $now = (new DateTime('now', new DateTimeZone('America/Lima')))->format('Y-m-d H:i:s');
 
         /*
         |--------------------------------------------------------------------------

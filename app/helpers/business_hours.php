@@ -1,5 +1,10 @@
 <?php
 
+// Todos los cálculos de horario laboral se realizan en hora de Perú.
+if (date_default_timezone_get() !== 'America/Lima') {
+    date_default_timezone_set('America/Lima');
+}
+
 function calculateBusinessHours(?string $startDateTime, ?string $endDateTime): float
 {
     if (empty($startDateTime) || empty($endDateTime)) {

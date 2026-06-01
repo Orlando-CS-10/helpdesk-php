@@ -1,4 +1,8 @@
 <?php
+// El ticket y su SLA se registran con hora de Perú.
+if (date_default_timezone_get() !== 'America/Lima') {
+    date_default_timezone_set('America/Lima');
+}
 require_once __DIR__ . '/app/helpers/session.php';
 require_once __DIR__ . '/app/config/database.php';
 require_once __DIR__ . '/app/helpers/notifications.php';
@@ -69,6 +73,9 @@ $assignedTo = $assignedTech ? (int)$assignedTech['id'] : null;
 $supportLevel = $assignedTech ? (int)$assignedTech['tech_level'] : 1;
 $initialStatus = $assignedTo !== null ? 'EN_PROCESO' : 'ABIERTO';
 
+// El SLA inicia desde el momento exacto de creación del ticket.
+$createdAt = (new DateTime('now', new DateTimeZone('America/Lima')))->format('Y-m-d H:i:s');
+
 try {
     $pdo->beginTransaction();
 
@@ -98,10 +105,10 @@ try {
                 0,
                 :sla_hours,
                 :support_level,
-                CURRENT_TIMESTAMP,
+                :level_started_at,
                 NULL,
-                CURRENT_TIMESTAMP,
-                CURRENT_TIMESTAMP
+                :created_at,
+                :updated_at
             )";
 
     $stmt = $pdo->prepare($sql);
@@ -121,6 +128,9 @@ try {
     $stmt->bindValue(':category', $category);
     $stmt->bindValue(':sla_hours', $slaHours, PDO::PARAM_INT);
     $stmt->bindValue(':support_level', $supportLevel, PDO::PARAM_INT);
+    $stmt->bindValue(':level_started_at', $createdAt);
+    $stmt->bindValue(':created_at', $createdAt);
+    $stmt->bindValue(':updated_at', $createdAt);
 
     $stmt->execute();
 
