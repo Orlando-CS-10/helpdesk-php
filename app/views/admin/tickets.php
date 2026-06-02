@@ -33,6 +33,30 @@ $dateFrom = $dateFrom ?? ($_GET['date_from'] ?? '');
 $dateTo = $dateTo ?? ($_GET['date_to'] ?? '');
 $techUsers = $techUsers ?? [];
 
+$perPage = $perPage ?? (int)($_GET['per_page'] ?? 10);
+$currentPage = $currentPage ?? (int)($_GET['page'] ?? 1);
+$totalTickets = $totalTickets ?? count($tickets ?? []);
+$totalPages = $totalPages ?? 1;
+$showingFrom = $showingFrom ?? (!empty($tickets) ? 1 : 0);
+$showingTo = $showingTo ?? count($tickets ?? []);
+
+if (!function_exists('buildTicketPaginationUrl')) {
+    function buildTicketPaginationUrl(array $extra = []): string
+    {
+        $query = $_GET;
+
+        foreach ($extra as $key => $value) {
+            if ($value === null || $value === '') {
+                unset($query[$key]);
+            } else {
+                $query[$key] = $value;
+            }
+        }
+
+        return '/helpdesk-php/admin-tickets.php' . (!empty($query) ? '?' . http_build_query($query) : '');
+    }
+}
+
 
 $techLevelById = [];
 $techLevelByName = [];
@@ -130,6 +154,7 @@ require_once __DIR__ . '/../layouts/header.php';
                 </div>
 
                 <form action="/helpdesk-php/admin-tickets.php" method="GET" class="ticket-form admin-ticket-filter-form">
+                    <input type="hidden" name="per_page" value="<?= (int)$perPage ?>">
                     <div class="admin-ticket-filter-grid">
                         <div class="form-group">
                             <label for="ticket_code">Código de ticket</label>
@@ -254,9 +279,39 @@ require_once __DIR__ . '/../layouts/header.php';
             </section>
 
             <section class="card my-tickets-card">
-                <div class="my-tickets-header">
-                    <h2>Listado general de tickets</h2>
-                    <p>Incluye tiempos de respuesta, resolución y cumplimiento de SLA por ticket.</p>
+                <div class="my-tickets-header admin-ticket-list-header">
+                    <div>
+                        <h2>Listado general de tickets</h2>
+                        <p>Incluye tiempos de respuesta, resolución y cumplimiento de SLA por ticket.</p>
+                    </div>
+
+                    <div class="ticket-page-size-box">
+                        <span>Ver</span>
+                        <form action="/helpdesk-php/admin-tickets.php" method="GET" class="ticket-page-size-form">
+                            <?php foreach ($_GET as $key => $value): ?>
+                                <?php if (!in_array($key, ['per_page', 'page'], true) && is_scalar($value)): ?>
+                                    <input type="hidden" name="<?= htmlspecialchars($key) ?>" value="<?= htmlspecialchars((string)$value) ?>">
+                                <?php endif; ?>
+                            <?php endforeach; ?>
+
+                            <select name="per_page" onchange="this.form.submit()" aria-label="Cantidad de tickets por página">
+                                <option value="10" <?= (int)$perPage === 10 ? 'selected' : '' ?>>10</option>
+                                <option value="20" <?= (int)$perPage === 20 ? 'selected' : '' ?>>20</option>
+                                <option value="30" <?= (int)$perPage === 30 ? 'selected' : '' ?>>30</option>
+                            </select>
+                        </form>
+                        <span>por página</span>
+                    </div>
+                </div>
+
+                <div class="ticket-pagination-summary">
+                    <span>
+                        Mostrando <strong><?= (int)$showingFrom ?></strong> - <strong><?= (int)$showingTo ?></strong>
+                        de <strong><?= (int)$totalTickets ?></strong> tickets
+                    </span>
+
+                    <?php if ((int)$totalTickets > (int)$perPage): ?>
+                    <?php endif; ?>
                 </div>
 
                 <?php if (!empty($tickets)): ?>
@@ -426,6 +481,53 @@ require_once __DIR__ . '/../layouts/header.php';
                             </tbody>
                         </table>
                     </div>
+
+                    <?php if ((int)$totalPages > 1): ?>
+                        <?php
+                        $previousPage = max(1, (int)$currentPage - 1);
+                        $nextPage = min((int)$totalPages, (int)$currentPage + 1);
+                        $startPage = max(1, (int)$currentPage - 2);
+                        $endPage = min((int)$totalPages, (int)$currentPage + 2);
+                        ?>
+
+                        <nav class="tickets-pagination" aria-label="Paginación de tickets">
+                            <a
+                                class="tickets-page-btn <?= (int)$currentPage <= 1 ? 'disabled' : '' ?>"
+                                href="<?= (int)$currentPage <= 1 ? '#' : htmlspecialchars(buildTicketPaginationUrl(['page' => $previousPage, 'per_page' => $perPage])) ?>">
+                                ‹ Anterior
+                            </a>
+
+                            <div class="tickets-page-numbers">
+                                <?php if ($startPage > 1): ?>
+                                    <a class="tickets-page-number" href="<?= htmlspecialchars(buildTicketPaginationUrl(['page' => 1, 'per_page' => $perPage])) ?>">1</a>
+                                    <?php if ($startPage > 2): ?>
+                                        <span class="tickets-page-dots">…</span>
+                                    <?php endif; ?>
+                                <?php endif; ?>
+
+                                <?php for ($pageNumber = $startPage; $pageNumber <= $endPage; $pageNumber++): ?>
+                                    <a
+                                        class="tickets-page-number <?= (int)$pageNumber === (int)$currentPage ? 'active' : '' ?>"
+                                        href="<?= htmlspecialchars(buildTicketPaginationUrl(['page' => $pageNumber, 'per_page' => $perPage])) ?>">
+                                        <?= (int)$pageNumber ?>
+                                    </a>
+                                <?php endfor; ?>
+
+                                <?php if ($endPage < (int)$totalPages): ?>
+                                    <?php if ($endPage < (int)$totalPages - 1): ?>
+                                        <span class="tickets-page-dots">…</span>
+                                    <?php endif; ?>
+                                    <a class="tickets-page-number" href="<?= htmlspecialchars(buildTicketPaginationUrl(['page' => $totalPages, 'per_page' => $perPage])) ?>"><?= (int)$totalPages ?></a>
+                                <?php endif; ?>
+                            </div>
+
+                            <a
+                                class="tickets-page-btn <?= (int)$currentPage >= (int)$totalPages ? 'disabled' : '' ?>"
+                                href="<?= (int)$currentPage >= (int)$totalPages ? '#' : htmlspecialchars(buildTicketPaginationUrl(['page' => $nextPage, 'per_page' => $perPage])) ?>">
+                                Siguiente ›
+                            </a>
+                        </nav>
+                    <?php endif; ?>
                 <?php else: ?>
                     <div class="empty-ticket-box">
                         <h4>No se encontraron tickets</h4>

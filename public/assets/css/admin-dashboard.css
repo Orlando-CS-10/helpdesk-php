@@ -730,3 +730,227 @@ body.modal-open {
         grid-template-columns: 1fr;
     }
 }
+
+/* ============================= */
+/* PANEL OPERATIVO - INICIO */
+/* ============================= */
+.admin-home-panel {
+    gap: 22px;
+}
+
+.admin-home-hero {
+    position: relative;
+    min-height: 148px;
+    box-shadow: 0 18px 40px rgba(15, 23, 42, 0.08);
+}
+
+.admin-home-hero::after {
+    content: "";
+    position: absolute;
+    right: -70px;
+    top: -90px;
+    width: 260px;
+    height: 260px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(255, 122, 0, 0.22), transparent 65%);
+    pointer-events: none;
+}
+
+.admin-home-kpis .admin-kpi-card {
+    position: relative;
+    overflow: hidden;
+}
+
+.admin-home-kpis .admin-kpi-card::after {
+    content: "";
+    position: absolute;
+    right: -26px;
+    top: -26px;
+    width: 76px;
+    height: 76px;
+    border-radius: 50%;
+    background: rgba(255, 122, 0, 0.08);
+}
+
+.admin-home-main-grid {
+    grid-template-columns: minmax(0, 1fr) minmax(420px, 0.95fr);
+}
+
+.admin-home-actions-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px;
+}
+
+.admin-home-action {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-height: 126px;
+    padding: 18px;
+    border: 1px solid #e7edf4;
+    border-radius: 18px;
+    background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+    text-decoration: none;
+    transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+.admin-home-action:hover {
+    transform: translateY(-3px);
+    border-color: rgba(255, 122, 0, 0.34);
+    box-shadow: 0 16px 28px rgba(15, 61, 46, 0.08);
+}
+
+.admin-home-action span {
+    width: 44px;
+    height: 44px;
+    border-radius: 15px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: #fff7ed;
+    color: #ff7a00;
+    font-size: 17px;
+}
+
+.admin-home-action strong {
+    color: #0f172a;
+    font-size: 17px;
+    letter-spacing: -0.2px;
+}
+
+.admin-home-action small {
+    color: #64748b;
+    font-size: 13px;
+    line-height: 1.45;
+}
+
+.admin-home-mini-charts {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+}
+
+.admin-home-chart-small {
+    height: 220px;
+}
+
+.admin-home-metric-list {
+    display: grid;
+    gap: 8px;
+    margin-top: 14px;
+}
+
+.admin-home-metric-list p {
+    margin: 0;
+    color: #475569;
+    font-size: 14px;
+}
+
+.admin-home-metric-list strong {
+    color: #0f3d2e;
+    font-weight: 900;
+}
+
+.admin-home-chart-header {
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+    align-items: flex-start;
+}
+
+.admin-home-peak-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+    padding: 8px 12px;
+    border-radius: 999px;
+    background: #fff7ed;
+    color: #9a3412;
+    border: 1px solid #fed7aa;
+    font-size: 12px;
+    font-weight: 800;
+}
+
+.admin-home-peak-pill strong {
+    color: #0f3d2e;
+}
+
+.admin-home-line-chart {
+    height: 330px;
+    border-color: rgba(255, 122, 0, 0.16);
+    background: linear-gradient(180deg, #ffffff, #fffaf5);
+}
+
+.admin-home-bottom-grid {
+    grid-template-columns: minmax(380px, 0.8fr) minmax(0, 1.2fr);
+}
+
+.admin-home-table-wrap {
+    max-height: 300px;
+    overflow: auto;
+}
+
+.admin-home-recent-table {
+    min-width: 680px;
+}
+
+.admin-home-recent-table td,
+.admin-home-recent-table th {
+    padding: 11px 12px;
+}
+
+.admin-home-recent-table td strong {
+    max-width: 340px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* Animación suave de entrada para tarjetas y contenedores */
+.admin-home-panel > section,
+.admin-home-panel .admin-kpi-card,
+.admin-home-panel .admin-panel-card {
+    animation: adminHomeFadeUp 0.42s ease both;
+}
+
+.admin-home-panel .admin-kpi-card:nth-child(1) { animation-delay: 0.04s; }
+.admin-home-panel .admin-kpi-card:nth-child(2) { animation-delay: 0.08s; }
+.admin-home-panel .admin-kpi-card:nth-child(3) { animation-delay: 0.12s; }
+.admin-home-panel .admin-kpi-card:nth-child(4) { animation-delay: 0.16s; }
+
+@keyframes adminHomeFadeUp {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@media (max-width: 1200px) {
+    .admin-home-main-grid,
+    .admin-home-bottom-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 760px) {
+    .admin-home-actions-grid,
+    .admin-home-mini-charts {
+        grid-template-columns: 1fr;
+    }
+
+    .admin-home-chart-header {
+        flex-direction: column;
+    }
+
+    .admin-home-peak-pill {
+        width: 100%;
+        justify-content: center;
+    }
+}

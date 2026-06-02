@@ -27,6 +27,7 @@ if ($ticketId <= 0) {
 // ======================================================
 $currentUser = user();
 $currentRole = $currentUser['role'] ?? '';
+$canUseInternalConversation = in_array($currentRole, ['ADMIN', 'TECH'], true);
 
 
 // ======================================================
@@ -194,6 +195,33 @@ $stmtActivities->execute([
 ]);
 
 $activities = $stmtActivities->fetchAll(PDO::FETCH_ASSOC);
+
+
+// ======================================================
+// 7.1. CARGAR CONVERSACIÓN INTERNA
+//      Solo ADMIN y TECH pueden ver estos mensajes.
+//      El CLIENT no recibe esta información desde backend.
+// ======================================================
+$internalMessages = [];
+
+if ($canUseInternalConversation) {
+    $sqlInternalMessages = "SELECT
+                                tim.*,
+                                u.name,
+                                u.role
+                            FROM ticket_internal_messages tim
+                            INNER JOIN users u ON u.id = tim.user_id
+                            WHERE tim.ticket_id = :ticket_id
+                              AND tim.deleted_at IS NULL
+                            ORDER BY tim.created_at ASC, tim.id ASC";
+
+    $stmtInternalMessages = $pdo->prepare($sqlInternalMessages);
+    $stmtInternalMessages->execute([
+        'ticket_id' => $ticketId
+    ]);
+
+    $internalMessages = $stmtInternalMessages->fetchAll(PDO::FETCH_ASSOC);
+}
 
 
 // ======================================================

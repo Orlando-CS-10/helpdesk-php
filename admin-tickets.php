@@ -63,7 +63,18 @@ $stmtTechs = $pdo->prepare($sqlTechs);
 $stmtTechs->execute();
 $techUsers = $stmtTechs->fetchAll(PDO::FETCH_ASSOC);
 
-$sql = "SELECT
+$allowedPerPage = [10, 20, 30];
+$perPage = (int)($_GET['per_page'] ?? 10);
+if (!in_array($perPage, $allowedPerPage, true)) {
+    $perPage = 10;
+}
+
+$currentPage = (int)($_GET['page'] ?? 1);
+if ($currentPage < 1) {
+    $currentPage = 1;
+}
+
+$selectSql = "SELECT
             t.id,
             t.subject,
             t.description,
@@ -89,8 +100,9 @@ $sql = "SELECT
                 WHEN t.closed_at IS NOT NULL
                 THEN TIMESTAMPDIFF(HOUR, t.created_at, t.closed_at)
                 ELSE NULL
-            END AS ttr_hours
-        FROM tickets t
+            END AS ttr_hours";
+
+$fromSql = " FROM tickets t
         INNER JOIN users u ON u.id = t.requester_id
         LEFT JOIN users a ON a.id = t.assigned_to
         WHERE 1=1";
@@ -98,66 +110,66 @@ $sql = "SELECT
 $params = [];
 
 if ($status !== '' && in_array($status, $allowedStatus, true)) {
-    $sql .= " AND t.status = :status";
+    $fromSql .= " AND t.status = :status";
     $params['status'] = $status;
 }
 
 if ($priority !== '' && in_array($priority, $allowedPriority, true)) {
-    $sql .= " AND t.priority = :priority";
+    $fromSql .= " AND t.priority = :priority";
     $params['priority'] = $priority;
 }
 
 if ($category !== '' && in_array($category, $allowedCategory, true)) {
-    $sql .= " AND t.category = :category";
+    $fromSql .= " AND t.category = :category";
     $params['category'] = $category;
 }
 
 $ticketCodeDigits = preg_replace('/[^0-9]/', '', $ticketCode);
 if ($ticketCodeDigits !== '') {
-    $sql .= " AND t.id = :ticket_code";
+    $fromSql .= " AND t.id = :ticket_code";
     $params['ticket_code'] = (int)$ticketCodeDigits;
 }
 
 if ($assignedTo !== '' && ctype_digit($assignedTo) && (int)$assignedTo > 0) {
-    $sql .= " AND t.assigned_to = :assigned_to";
+    $fromSql .= " AND t.assigned_to = :assigned_to";
     $params['assigned_to'] = (int)$assignedTo;
 }
 
 if ($techLevel !== '' && in_array($techLevel, $allowedTechLevels, true)) {
-    $sql .= " AND a.tech_level = :tech_level";
+    $fromSql .= " AND a.tech_level = :tech_level";
     $params['tech_level'] = (int)$techLevel;
 }
 
 if ($assignmentStatus !== '' && in_array($assignmentStatus, $allowedAssignmentStatus, true)) {
     if ($assignmentStatus === 'ASIGNADO') {
-        $sql .= " AND t.assigned_to IS NOT NULL AND t.assigned_to <> 0";
+        $fromSql .= " AND t.assigned_to IS NOT NULL AND t.assigned_to <> 0";
     } elseif ($assignmentStatus === 'SIN_ASIGNAR') {
-        $sql .= " AND (t.assigned_to IS NULL OR t.assigned_to = 0)";
+        $fromSql .= " AND (t.assigned_to IS NULL OR t.assigned_to = 0)";
     }
 }
 
 if ($slaStatus !== '' && in_array($slaStatus, $allowedSlaStatus, true)) {
     if ($slaStatus === 'CUMPLIDO') {
-        $sql .= " AND t.sla_met = 1";
+        $fromSql .= " AND t.sla_met = 1";
     } elseif ($slaStatus === 'NO_CUMPLIDO') {
-        $sql .= " AND t.sla_met = 0";
+        $fromSql .= " AND t.sla_met = 0";
     } elseif ($slaStatus === 'PENDIENTE') {
-        $sql .= " AND t.sla_met IS NULL";
+        $fromSql .= " AND t.sla_met IS NULL";
     }
 }
 
 if ($dateFrom !== '') {
-    $sql .= " AND DATE(t.created_at) >= :date_from";
+    $fromSql .= " AND DATE(t.created_at) >= :date_from";
     $params['date_from'] = $dateFrom;
 }
 
 if ($dateTo !== '') {
-    $sql .= " AND DATE(t.created_at) <= :date_to";
+    $fromSql .= " AND DATE(t.created_at) <= :date_to";
     $params['date_to'] = $dateTo;
 }
 
 if ($search !== '') {
-    $sql .= " AND (
+    $fromSql .= " AND (
                 t.subject LIKE :search
                 OR t.description LIKE :search
                 OR u.name LIKE :search
@@ -167,10 +179,32 @@ if ($search !== '') {
     $params['search'] = '%' . $search . '%';
 }
 
-$sql .= " ORDER BY t.created_at DESC";
+$countSql = "SELECT COUNT(DISTINCT t.id) AS total" . $fromSql;
+$stmtTotal = $pdo->prepare($countSql);
+foreach ($params as $key => $value) {
+    $stmtTotal->bindValue(':' . $key, $value, is_int($value) ? PDO::PARAM_INT : PDO::PARAM_STR);
+}
+$stmtTotal->execute();
+$totalTickets = (int)$stmtTotal->fetchColumn();
 
+$totalPages = max(1, (int)ceil($totalTickets / $perPage));
+if ($currentPage > $totalPages) {
+    $currentPage = $totalPages;
+}
+
+$offset = ($currentPage - 1) * $perPage;
+
+$sql = $selectSql . $fromSql . " ORDER BY t.created_at DESC LIMIT :limit OFFSET :offset";
 $stmt = $pdo->prepare($sql);
-$stmt->execute($params);
+foreach ($params as $key => $value) {
+    $stmt->bindValue(':' . $key, $value, is_int($value) ? PDO::PARAM_INT : PDO::PARAM_STR);
+}
+$stmt->bindValue(':limit', $perPage, PDO::PARAM_INT);
+$stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
+$stmt->execute();
 $tickets = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+$showingFrom = $totalTickets > 0 ? $offset + 1 : 0;
+$showingTo = min($offset + $perPage, $totalTickets);
 
 require __DIR__ . '/app/views/admin/tickets.php';

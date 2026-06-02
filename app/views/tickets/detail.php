@@ -13,6 +13,38 @@ $clientInfo = $clientInfo ?? [];
 $clientStats = $clientStats ?? [];
 $feedback = $feedback ?? null;
 
+
+$internalMessages = $internalMessages ?? [];
+$canUseInternalConversation = $canUseInternalConversation ?? in_array((user()['role'] ?? ''), ['ADMIN', 'TECH'], true);
+
+if (!function_exists('ticketUserInitials')) {
+    function ticketUserInitials(?string $name): string
+    {
+        $name = trim((string)$name);
+        if ($name === '') {
+            return 'U';
+        }
+
+        $parts = preg_split('/\s+/', $name);
+        $first = mb_substr($parts[0] ?? 'U', 0, 1, 'UTF-8');
+        $second = count($parts) > 1 ? mb_substr($parts[1], 0, 1, 'UTF-8') : '';
+
+        return mb_strtoupper($first . $second, 'UTF-8');
+    }
+}
+
+if (!function_exists('ticketRoleLabel')) {
+    function ticketRoleLabel(?string $role): string
+    {
+        return match ($role) {
+            'ADMIN' => 'Administrador',
+            'TECH' => 'Técnico',
+            'CLIENT' => 'Cliente',
+            default => (string)$role,
+        };
+    }
+}
+
 if (empty($ticket) || empty($ticket['id'])) {
     $_SESSION['ticket_error'] = 'No se encontró información del ticket.';
     header('Location: /helpdesk-php/home.php');
@@ -496,6 +528,12 @@ require_once __DIR__ . '/../layouts/header.php';
                                 <button class="ticket-tab-btn" type="button" onclick="showTicketTab('activityTab', this)">
                                     Actividad de ticket (<?= count($activities ?? []) ?>)
                                 </button>
+
+                                <?php if ($canUseInternalConversation): ?>
+                                    <button class="ticket-tab-btn internal-tab-btn" type="button" onclick="showTicketTab('internalConversationTab', this)">
+                                        Conversación interna (<?= count($internalMessages ?? []) ?>)
+                                    </button>
+                                <?php endif; ?>
                             </div>
 
                             <!-- TAB CONVERSACIÓN -->
@@ -510,9 +548,14 @@ require_once __DIR__ . '/../layouts/header.php';
                                         <?php foreach ($messages as $message): ?>
                                             <div class="ticket-message-item">
                                                 <div class="ticket-message-top">
-                                                    <div>
-                                                        <strong><?= htmlspecialchars($message['name']) ?></strong>
-                                                        <span class="message-role"><?= htmlspecialchars($message['role']) ?></span>
+                                                    <div class="ticket-message-author">
+                                                        <div class="ticket-message-avatar">
+                                                            <?= htmlspecialchars(ticketUserInitials($message['name'] ?? 'Usuario')) ?>
+                                                        </div>
+                                                        <div class="ticket-message-author-info">
+                                                            <strong><?= htmlspecialchars($message['name']) ?></strong>
+                                                            <span class="message-role"><?= htmlspecialchars(ticketRoleLabel($message['role'] ?? '')) ?></span>
+                                                        </div>
                                                     </div>
 
                                                     <div class="message-right">
@@ -522,15 +565,18 @@ require_once __DIR__ . '/../layouts/header.php';
 
                                                         <?php if (($ticket['status'] ?? '') !== 'CERRADO'): ?>
                                                             <div class="message-actions-inline">
-                                                                <a
-                                                                    href="/helpdesk-php/edit-message.php?id=<?= (int)$message['id'] ?>"
+                                                                <button
+                                                                    type="button"
                                                                     class="message-edit-btn"
                                                                     title="Editar mensaje"
+                                                                    data-message-id="<?= (int)$message['id'] ?>"
+                                                                    data-message-text="<?= htmlspecialchars($message['message'] ?? '', ENT_QUOTES, 'UTF-8') ?>"
+                                                                    onclick="openEditMessageModalFromButton(this)"
                                                                 >
                                                                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 24 24">
                                                                         <path d="M3 17.25V21h3.75L17.8 9.94l-3.75-3.75L3 17.25zm2.92 2.33H5v-.92l8.06-8.06.92.92L5.92 19.58zM20.71 7.04a1.003 1.003 0 0 0 0-1.42L18.37 3.29a1.003 1.003 0 0 0-1.42 0l-1.13 1.13 3.75 3.75 1.14-1.13z"/>
                                                                     </svg>
-                                                                </a>
+                                                                </button>
 
                                                                 <a
                                                                     href="#"
@@ -609,6 +655,94 @@ require_once __DIR__ . '/../layouts/header.php';
                                     </div>
                                 <?php endif; ?>
                             </div>
+
+                            <?php if ($canUseInternalConversation): ?>
+                                <!-- TAB CONVERSACIÓN INTERNA -->
+                                <div class="ticket-tab-panel" id="internalConversationTab">
+                                    <div class="ticket-section-title internal-section-title">
+                                        <h3>Conversación interna</h3>
+                                        <p>Espacio privado solo para administradores y técnicos. El cliente no puede ver estos mensajes.</p>
+                                    </div>
+
+                                    <div class="internal-chat-warning">
+                                        <strong>Nota interna</strong>
+                                        <span>Usa esta sección para coordinar diagnóstico, escalamiento o acciones técnicas sin mostrarlo al cliente.</span>
+                                    </div>
+
+                                    <?php if (!empty($_SESSION['internal_message_error'])): ?>
+                                        <div class="alert error internal-alert">
+                                            <?= htmlspecialchars($_SESSION['internal_message_error']) ?>
+                                        </div>
+                                        <?php unset($_SESSION['internal_message_error']); ?>
+                                    <?php endif; ?>
+
+                                    <?php if (!empty($_SESSION['internal_message_success'])): ?>
+                                        <div class="alert success internal-alert">
+                                            <?= htmlspecialchars($_SESSION['internal_message_success']) ?>
+                                        </div>
+                                        <?php unset($_SESSION['internal_message_success']); ?>
+                                    <?php endif; ?>
+
+
+                                    <?php if (!empty($internalMessages)): ?>
+                                        <div class="ticket-messages-list internal-messages-list">
+                                            <?php foreach ($internalMessages as $internalMessage): ?>
+                                                <div class="ticket-message-item internal-message-item">
+                                                    <div class="ticket-message-top">
+                                                        <div class="ticket-message-author">
+                                                            <div class="ticket-message-avatar internal-avatar">
+                                                                <?= htmlspecialchars(ticketUserInitials($internalMessage['name'] ?? 'Usuario')) ?>
+                                                            </div>
+                                                            <div class="ticket-message-author-info">
+                                                                <strong><?= htmlspecialchars($internalMessage['name'] ?? 'Usuario') ?></strong>
+                                                                <span class="message-role internal-role"><?= htmlspecialchars(ticketRoleLabel($internalMessage['role'] ?? '')) ?></span>
+                                                            </div>
+                                                        </div>
+
+                                                        <div class="message-right">
+                                                            <span class="message-date">
+                                                                <?= !empty($internalMessage['created_at']) ? date('d/m/Y H:i', strtotime($internalMessage['created_at'])) : '' ?>
+                                                            </span>
+                                                        </div>
+                                                    </div>
+
+                                                    <div class="ticket-message-body">
+                                                        <?= nl2br(htmlspecialchars($internalMessage['message'])) ?>
+                                                    </div>
+                                                </div>
+                                            <?php endforeach; ?>
+                                        </div>
+                                    <?php else: ?>
+                                        <div class="empty-ticket-box internal-empty-box">
+                                            <h4>Aún no hay mensajes internos</h4>
+                                            <p>Los administradores y técnicos pueden coordinar aquí sin que el cliente visualice la conversación.</p>
+                                        </div>
+                                    <?php endif; ?>
+
+                                    <?php if (($ticket['status'] ?? '') !== 'CERRADO'): ?>
+                                        <form action="/helpdesk-php/save-internal-message.php" method="POST" class="ticket-form internal-message-form">
+                                            <input type="hidden" name="ticket_id" value="<?= (int)$ticket['id'] ?>">
+
+                                            <div class="form-group">
+                                                <label for="internal_message_admin">Mensaje interno</label>
+                                                <textarea
+                                                    id="internal_message_admin"
+                                                    name="message"
+                                                    rows="4"
+                                                    placeholder="Escribe una nota interna para el equipo técnico..."
+                                                    required
+                                                ></textarea>
+                                            </div>
+
+                                            <div class="ticket-form-actions">
+                                                <button type="submit" class="btn-primary">Enviar mensaje interno</button>
+                                            </div>
+                                        </form>
+                                    <?php else: ?>
+                                        <div class="internal-closed-note">El ticket está cerrado. La conversación interna queda en modo lectura.</div>
+                                    <?php endif; ?>
+                                </div>
+                            <?php endif; ?>
                         </section>
 
                         <!-- FORMULARIO DE RESPUESTA -->
@@ -961,6 +1095,12 @@ require_once __DIR__ . '/../layouts/header.php';
                 <button class="ticket-tab-btn" type="button" onclick="showTicketTab('activityTab', this)">
                     Actividad de ticket (<?= count($activities ?? []) ?>)
                 </button>
+
+                <?php if ($canUseInternalConversation): ?>
+                    <button class="ticket-tab-btn internal-tab-btn" type="button" onclick="showTicketTab('internalConversationTab', this)">
+                        Conversación interna (<?= count($internalMessages ?? []) ?>)
+                    </button>
+                <?php endif; ?>
             </div>
 
             <div class="ticket-tab-panel active" id="conversationTab">
@@ -974,9 +1114,14 @@ require_once __DIR__ . '/../layouts/header.php';
                         <?php foreach ($messages as $message): ?>
                             <div class="ticket-message-item">
                                 <div class="ticket-message-top">
-                                    <div>
-                                        <strong><?= htmlspecialchars($message['name']) ?></strong>
-                                        <span class="message-role"><?= htmlspecialchars($message['role']) ?></span>
+                                    <div class="ticket-message-author">
+                                        <div class="ticket-message-avatar">
+                                            <?= htmlspecialchars(ticketUserInitials($message['name'] ?? 'Usuario')) ?>
+                                        </div>
+                                        <div class="ticket-message-author-info">
+                                            <strong><?= htmlspecialchars($message['name']) ?></strong>
+                                            <span class="message-role"><?= htmlspecialchars(ticketRoleLabel($message['role'] ?? '')) ?></span>
+                                        </div>
                                     </div>
 
                                     <div class="message-right">
@@ -992,15 +1137,18 @@ require_once __DIR__ . '/../layouts/header.php';
                                             )
                                         ): ?>
                                             <div class="message-actions-inline">
-                                                <a
-                                                    href="/helpdesk-php/edit-message.php?id=<?= (int)$message['id'] ?>"
-                                                    class="message-edit-btn"
-                                                    title="Editar mensaje"
-                                                >
+                                                                <button
+                                                                    type="button"
+                                                                    class="message-edit-btn"
+                                                                    title="Editar mensaje"
+                                                                    data-message-id="<?= (int)$message['id'] ?>"
+                                                                    data-message-text="<?= htmlspecialchars($message['message'] ?? '', ENT_QUOTES, 'UTF-8') ?>"
+                                                                    onclick="openEditMessageModalFromButton(this)"
+                                                                >
                                                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 24 24">
                                                         <path d="M3 17.25V21h3.75L17.8 9.94l-3.75-3.75L3 17.25zm2.92 2.33H5v-.92l8.06-8.06.92.92L5.92 19.58zM20.71 7.04a1.003 1.003 0 0 0 0-1.42L18.37 3.29a1.003 1.003 0 0 0-1.42 0l-1.13 1.13 3.75 3.75 1.14-1.13z"/>
                                                     </svg>
-                                                </a>
+                                                                </button>
 
                                                 <a
                                                     href="#"
@@ -1066,6 +1214,78 @@ require_once __DIR__ . '/../layouts/header.php';
                     </div>
                 <?php endif; ?>
             </div>
+
+            <?php if ($canUseInternalConversation): ?>
+                <div class="ticket-tab-panel" id="internalConversationTab">
+                    <div class="ticket-section-title internal-section-title">
+                        <h3>Conversación interna</h3>
+                        <p>Espacio privado solo para administradores y técnicos. El cliente no puede ver estos mensajes.</p>
+                    </div>
+
+                    <div class="internal-chat-warning">
+                        <strong>Nota interna</strong>
+                        <span>Usa esta sección para coordinar diagnóstico, escalamiento o acciones técnicas sin mostrarlo al cliente.</span>
+                    </div>
+
+                    <?php if (!empty($internalMessages)): ?>
+                        <div class="ticket-messages-list internal-messages-list">
+                            <?php foreach ($internalMessages as $internalMessage): ?>
+                                <div class="ticket-message-item internal-message-item">
+                                    <div class="ticket-message-top">
+                                        <div class="ticket-message-author">
+                                            <div class="ticket-message-avatar internal-avatar">
+                                                <?= htmlspecialchars(ticketUserInitials($internalMessage['name'] ?? 'Usuario')) ?>
+                                            </div>
+                                            <div class="ticket-message-author-info">
+                                                <strong><?= htmlspecialchars($internalMessage['name'] ?? 'Usuario') ?></strong>
+                                                <span class="message-role internal-role"><?= htmlspecialchars(ticketRoleLabel($internalMessage['role'] ?? '')) ?></span>
+                                            </div>
+                                        </div>
+
+                                        <div class="message-right">
+                                            <span class="message-date">
+                                                <?= !empty($internalMessage['created_at']) ? date('d/m/Y H:i', strtotime($internalMessage['created_at'])) : '' ?>
+                                            </span>
+                                        </div>
+                                    </div>
+
+                                    <div class="ticket-message-body">
+                                        <?= nl2br(htmlspecialchars($internalMessage['message'])) ?>
+                                    </div>
+                                </div>
+                            <?php endforeach; ?>
+                        </div>
+                    <?php else: ?>
+                        <div class="empty-ticket-box internal-empty-box">
+                            <h4>Aún no hay mensajes internos</h4>
+                            <p>Los administradores y técnicos pueden coordinar aquí sin que el cliente visualice la conversación.</p>
+                        </div>
+                    <?php endif; ?>
+
+                    <?php if (($ticket['status'] ?? '') !== 'CERRADO'): ?>
+                        <form action="/helpdesk-php/save-internal-message.php" method="POST" class="ticket-form internal-message-form">
+                            <input type="hidden" name="ticket_id" value="<?= (int)$ticket['id'] ?>">
+
+                            <div class="form-group">
+                                <label for="internal_message_tech">Mensaje interno</label>
+                                <textarea
+                                    id="internal_message_tech"
+                                    name="message"
+                                    rows="4"
+                                    placeholder="Escribe una nota interna para el equipo técnico..."
+                                    required
+                                ></textarea>
+                            </div>
+
+                            <div class="ticket-form-actions">
+                                <button type="submit" class="btn-primary">Enviar mensaje interno</button>
+                            </div>
+                        </form>
+                    <?php else: ?>
+                        <div class="internal-closed-note">El ticket está cerrado. La conversación interna queda en modo lectura.</div>
+                    <?php endif; ?>
+                </div>
+            <?php endif; ?>
         </section>
 
         <?php if (($ticket['status'] ?? '') !== 'CERRADO'): ?>
@@ -1172,6 +1392,42 @@ require_once __DIR__ . '/../layouts/header.php';
     </div>
 </div>
 <?php endif; ?>
+
+<!-- ==========================================================
+     MODAL EDITAR MENSAJE
+     ========================================================== -->
+<div class="modal-overlay" id="editMessageModal">
+    <div class="custom-modal edit-message-compact-modal">
+        <div class="custom-modal-header">
+            <h3>Editar respuesta</h3>
+            <button type="button" class="modal-close-btn" onclick="closeEditMessageModal()">×</button>
+        </div>
+
+        <form action="/helpdesk-php/edit-message.php" method="POST" id="editMessageForm">
+            <div class="custom-modal-body">
+                <input type="hidden" name="message_id" id="editMessageId" value="">
+
+                <p class="edit-message-modal-help">
+                    Actualiza el contenido del mensaje sin salir del detalle del ticket.
+                </p>
+
+                <label class="edit-message-modal-label" for="editMessageText">Mensaje</label>
+                <textarea
+                    name="message"
+                    id="editMessageText"
+                    class="edit-message-modal-textarea"
+                    rows="5"
+                    required
+                ></textarea>
+            </div>
+
+            <div class="custom-modal-footer">
+                <button type="button" class="btn-secondary" onclick="closeEditMessageModal()">Cancelar</button>
+                <button type="submit" class="btn-primary">Guardar cambios</button>
+            </div>
+        </form>
+    </div>
+</div>
 
 <!-- ==========================================================
      MODAL ELIMINAR MENSAJE
@@ -1396,6 +1652,54 @@ function showTicketTab(tabId, button) {
     if (button) button.classList.add('active');
 }
 
+document.addEventListener('DOMContentLoaded', function () {
+    const params = new URLSearchParams(window.location.search);
+
+    if (params.get('tab') === 'internal' || window.location.hash === '#internalConversationTab') {
+        const internalButton = document.querySelector('.ticket-tab-btn[onclick*="internalConversationTab"]');
+        showTicketTab('internalConversationTab', internalButton);
+    }
+});
+
+/**
+ * Modal editar mensaje
+ */
+function openEditMessageModalFromButton(button) {
+    if (!button) return;
+
+    const messageId = button.getAttribute('data-message-id') || '';
+    const messageText = button.getAttribute('data-message-text') || '';
+
+    openEditMessageModal(messageId, messageText);
+}
+
+function openEditMessageModal(messageId, messageText) {
+    const modal = document.getElementById('editMessageModal');
+    const input = document.getElementById('editMessageId');
+    const textarea = document.getElementById('editMessageText');
+
+    if (!modal || !input || !textarea) return;
+
+    input.value = messageId;
+    textarea.value = messageText;
+    modal.classList.add('show');
+
+    setTimeout(function () {
+        textarea.focus();
+        textarea.setSelectionRange(textarea.value.length, textarea.value.length);
+    }, 80);
+}
+
+function closeEditMessageModal() {
+    const modal = document.getElementById('editMessageModal');
+    const input = document.getElementById('editMessageId');
+    const textarea = document.getElementById('editMessageText');
+
+    if (modal) modal.classList.remove('show');
+    if (input) input.value = '';
+    if (textarea) textarea.value = '';
+}
+
 /**
  * Modal eliminar mensaje
  */
@@ -1504,9 +1808,14 @@ function closeAllClientTicketsModal() {
  * Cerrar modales/menu al hacer click fuera
  */
 document.addEventListener('click', function (e) {
+    const editModal = document.getElementById('editMessageModal');
     const deleteModal = document.getElementById('deleteModal');
     const closeModal = document.getElementById('closeTicketModal');
     const allTicketsModal = document.getElementById('allClientTicketsModal');
+
+    if (editModal && editModal.classList.contains('show') && e.target === editModal) {
+        closeEditMessageModal();
+    }
 
     if (deleteModal && deleteModal.classList.contains('show') && e.target === deleteModal) {
         closeDeleteModal();
@@ -1527,6 +1836,16 @@ document.addEventListener('click', function (e) {
         dropdown.classList.remove('show');
     }
 });
+
+document.addEventListener('keydown', function (e) {
+    if (e.key !== 'Escape') return;
+
+    closeEditMessageModal();
+    closeDeleteModal();
+    closeCloseTicketModal();
+    closeAllClientTicketsModal();
+});
+
 </script>
 
 <?php require_once __DIR__ . '/../layouts/footer.php'; ?>

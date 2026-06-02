@@ -21,7 +21,7 @@ $adminActiveMenu = $adminActiveMenu ?? '';
         <a href="/helpdesk-php/index.php" class="<?= ($activePage ?? '') === 'dashboard' ? 'active' : '' ?>">
             <span>
                 <i class="fa-solid fa-house"></i>
-                <span class="admin-link-text">Inicio</span>
+                <span class="admin-link-text">Panel operativo</span>
             </span>
         </a>
 
