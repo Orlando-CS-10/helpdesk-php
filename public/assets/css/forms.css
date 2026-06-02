@@ -1,27 +1,112 @@
 /* ============================= */
-/* CREAR TICKET */
+/* CREAR TICKET - CLIENTE */
 /* ============================= */
 
-/* CONTENEDOR PRINCIPAL */
-.ticket-form-card {
-    max-width: 900px;
-    margin: 0 auto;
+.client-ticket-create-page {
+    display: grid;
+    gap: 22px;
 }
 
-/* HEADER DEL FORM */
+.client-ticket-topbar {
+    align-items: flex-start;
+}
+
+.client-ticket-topbar h1 {
+    margin-bottom: 6px;
+}
+
+.client-ticket-topbar p {
+    margin: 0;
+    max-width: 760px;
+    color: var(--color-muted);
+    line-height: 1.55;
+    font-size: 14px;
+}
+
+.client-ticket-eyebrow {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+    padding: 6px 10px;
+    border-radius: 999px;
+    background: rgba(31, 122, 90, 0.10);
+    color: #0f3d2e;
+    font-size: 11px;
+    font-weight: 900;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+.client-ticket-eyebrow::before {
+    content: "";
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: #ff7a00;
+    box-shadow: 0 0 0 4px rgba(255, 122, 0, 0.14);
+}
+
+.client-ticket-topbar-actions {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+/* LAYOUT */
+.ticket-create-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 340px;
+    gap: 22px;
+    align-items: start;
+}
+
+/* CARD PRINCIPAL */
+.ticket-form-card {
+    position: relative;
+    max-width: none;
+    margin: 0;
+    padding: 30px;
+    border-radius: 24px;
+    border: 1px solid rgba(15, 61, 46, 0.12);
+    background: #ffffff;
+    box-shadow: 0 18px 42px rgba(15, 23, 42, 0.07);
+    overflow: hidden;
+}
+
+
 .ticket-form-header {
+    position: relative;
+    z-index: 1;
     margin-bottom: 24px;
+}
+
+.ticket-form-badge {
+    display: inline-flex;
+    align-items: center;
+    margin-bottom: 12px;
+    padding: 7px 11px;
+    border-radius: 999px;
+    background: #eef6f2;
+    border: 1px solid #cfe7db;
+    color: #0f3d2e;
+    font-size: 11px;
+    font-weight: 900;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
 }
 
 .ticket-form-header h2 {
     margin: 0 0 10px;
-    font-size: 30px;
-    line-height: 1.2;
+    font-size: 31px;
+    line-height: 1.15;
+    letter-spacing: -0.45px;
     color: var(--color-text);
 }
 
 .ticket-form-header p {
     margin: 0;
+    max-width: 790px;
     color: var(--color-muted);
     font-size: 15px;
     line-height: 1.7;
@@ -29,66 +114,124 @@
 
 /* FORM */
 .ticket-form {
+    position: relative;
+    z-index: 1;
     display: flex;
     flex-direction: column;
     gap: 18px;
 }
 
-/* FILAS (PRIORIDAD + CATEGORIA) */
 .form-row {
     display: grid;
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 16px;
 }
 
-/* GRUPO */
 .form-group {
     display: flex;
     flex-direction: column;
+    min-width: 0;
 }
 
-/* LABEL */
 .form-group label {
     margin-bottom: 8px;
-    font-weight: 700;
-    font-size: 14px;
-    color: var(--color-text);
+    font-weight: 800;
+    font-size: 13px;
+    color: #0f172a;
 }
 
-/* INPUTS / SELECT / TEXTAREA */
 .form-group input,
 .form-group select,
 .form-group textarea {
     width: 100%;
-    padding: 12px 14px;
-    border-radius: 12px;
-    border: 1px solid var(--color-border);
+    padding: 13px 14px;
+    border-radius: 14px;
+    border: 1px solid #dbe3ec;
     background: #ffffff;
     color: var(--color-text);
     font-size: 14px;
     outline: none;
-    transition: all 0.2s ease;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease, transform 0.2s ease;
     font-family: Arial, Helvetica, sans-serif;
 }
 
-/* TEXTAREA */
 .form-group textarea {
     resize: vertical;
-    min-height: 160px;
+    min-height: 168px;
+    line-height: 1.55;
 }
 
-/* FOCUS */
+.form-group input:hover,
+.form-group select:hover,
+.form-group textarea:hover {
+    border-color: rgba(31, 122, 90, 0.28);
+}
+
 .form-group input:focus,
 .form-group select:focus,
 .form-group textarea:focus {
-    border-color: rgba(255, 122, 0, 0.6);
-    box-shadow: 0 0 0 4px rgba(255, 122, 0, 0.08);
+    border-color: rgba(31, 122, 90, 0.62);
+    box-shadow: 0 0 0 4px rgba(31, 122, 90, 0.10);
+    background: #ffffff;
 }
 
-/* PLACEHOLDER */
 .form-group input::placeholder,
 .form-group textarea::placeholder {
     color: #94a3b8;
+}
+
+.form-help {
+    margin-top: 7px;
+    color: #64748b;
+    font-size: 12px;
+    line-height: 1.45;
+}
+
+/* GUÍA DE PRIORIDAD */
+.priority-guide {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+}
+
+.priority-guide-item {
+    padding: 13px 14px;
+    border-radius: 16px;
+    background: #ffffff;
+    border: 1px solid #e7edf4;
+    box-shadow: 0 10px 22px rgba(15, 61, 46, 0.04);
+    transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+}
+
+.priority-guide-item:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 14px 28px rgba(15, 61, 46, 0.07);
+}
+
+.priority-guide-item strong {
+    display: block;
+    margin-bottom: 5px;
+    font-size: 13px;
+    color: #0f172a;
+}
+
+.priority-guide-item span {
+    display: block;
+    color: #64748b;
+    font-size: 12px;
+    line-height: 1.45;
+}
+
+.priority-low {
+    border-left: 4px solid #22c55e;
+}
+
+.priority-medium {
+    border-left: 4px solid #ff7a00;
+}
+
+.priority-high {
+    border-left: 4px solid #ef4444;
 }
 
 /* ACCIONES */
@@ -97,32 +240,121 @@
     justify-content: flex-end;
     gap: 12px;
     margin-top: 10px;
+    padding-top: 16px;
+    border-top: 1px solid #eef2f7;
     flex-wrap: wrap;
 }
 
-/* BOTÓN CANCELAR */
 .ticket-form-actions .btn-secondary {
     background: #ffffff;
 }
 
-/* BOTÓN CREAR */
 .ticket-form-actions .btn-primary {
-    min-width: 160px;
+    min-width: 170px;
+    box-shadow: 0 12px 24px rgba(255, 122, 0, 0.24);
 }
 
+/* ASIDE DE AYUDA */
+.ticket-create-helper {
+    display: grid;
+    gap: 14px;
+    position: sticky;
+    top: 24px;
+}
 
-
-/* EFECTO CARD */
-.ticket-form-card {
-    box-shadow: 0 14px 30px rgba(15, 61, 46, 0.06);
+.ticket-helper-card {
+    padding: 18px;
     border-radius: 20px;
-    padding: 28px;
     background: #ffffff;
-    border: 1px solid var(--color-border);
+    border: 1px solid #e7edf4;
+    box-shadow: 0 12px 28px rgba(15, 23, 42, 0.05);
 }
+
+.ticket-helper-main {
+    background:
+        linear-gradient(135deg, rgba(15, 61, 46, 0.96), rgba(16, 35, 44, 0.96)),
+        radial-gradient(circle at top right, rgba(255, 122, 0, 0.18), transparent 36%);
+    color: #ffffff;
+}
+
+.ticket-helper-icon {
+    width: 42px;
+    height: 42px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 12px;
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.12);
+    color: #ffffff;
+    font-size: 20px;
+    font-weight: 900;
+}
+
+.ticket-helper-card h3,
+.ticket-helper-card h4 {
+    margin: 0 0 10px;
+    color: #0f172a;
+}
+
+.ticket-helper-main h3 {
+    color: #ffffff;
+}
+
+.ticket-helper-card p {
+    margin: 0;
+    color: #64748b;
+    line-height: 1.6;
+    font-size: 13px;
+}
+
+.ticket-helper-main p {
+    color: #d7e3dd;
+}
+
+.ticket-helper-card ul {
+    margin: 0;
+    padding-left: 18px;
+    color: #475569;
+    font-size: 13px;
+    line-height: 1.8;
+}
+
 
 /* RESPONSIVE */
+@media (max-width: 1120px) {
+    .ticket-create-layout {
+        grid-template-columns: 1fr;
+    }
+
+    .ticket-create-helper {
+        position: static;
+        grid-template-columns: repeat(3, 1fr);
+    }
+}
+
+@media (max-width: 900px) {
+    .ticket-create-helper,
+    .priority-guide {
+        grid-template-columns: 1fr;
+    }
+
+    .client-ticket-topbar {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .client-ticket-topbar-actions {
+        width: 100%;
+    }
+}
+
 @media (max-width: 768px) {
+    .ticket-form-card {
+        padding: 24px;
+        border-radius: 20px;
+    }
+
     .form-row {
         grid-template-columns: 1fr;
     }
@@ -132,10 +364,12 @@
     }
 
     .ticket-form-actions a,
-    .ticket-form-actions button {
+    .ticket-form-actions button,
+    .client-ticket-topbar-actions a {
         width: 100%;
     }
 }
+
 
 /* ============================= */
 /* AJUSTES */

@@ -1,21 +1,47 @@
 <?php
+
 require_once __DIR__ . '/app/helpers/session.php';
 require_once __DIR__ . '/app/config/database.php';
 
 requireLogin();
 
 $currentUser = user();
+$userId = (int)($currentUser['id'] ?? 0);
+$notificationId = (int)($_GET['id'] ?? $_POST['id'] ?? 0);
+$redirect = (string)($_GET['redirect'] ?? $_POST['redirect'] ?? '/helpdesk-php/index.php');
 
-$sql = "UPDATE notifications
-        SET is_read = 1
-        WHERE user_id = :user_id
-          AND is_read = 0";
+function safeNotificationRedirect(string $redirect): string
+{
+    if ($redirect === '') {
+        return '/helpdesk-php/index.php';
+    }
 
-$stmt = $pdo->prepare($sql);
+    $decoded = urldecode($redirect);
+
+    if (str_starts_with($decoded, '/helpdesk-php/')) {
+        return $decoded;
+    }
+
+    if (str_starts_with($decoded, 'ticket-detail.php')) {
+        return '/helpdesk-php/' . $decoded;
+    }
+
+    return '/helpdesk-php/index.php';
+}
+
+if ($userId <= 0 || $notificationId <= 0) {
+    header('Location: ' . safeNotificationRedirect($redirect));
+    exit;
+}
+
+$stmt = $pdo->prepare("UPDATE notifications
+                       SET is_read = 1
+                       WHERE id = :id
+                         AND user_id = :user_id");
 $stmt->execute([
-    'user_id' => $currentUser['id']
+    'id' => $notificationId,
+    'user_id' => $userId,
 ]);
 
-echo json_encode([
-    'success' => true
-]);
+header('Location: ' . safeNotificationRedirect($redirect));
+exit;
