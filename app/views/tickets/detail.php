@@ -185,7 +185,10 @@ $slaTimer = detailBuildSlaTimerData($ticket);
 
 $title = 'Detalle del Ticket';
 
-$isAdminView = (user()['role'] ?? '') === 'ADMIN';
+$currentUserForView = user();
+$currentRoleForView = $currentUserForView['role'] ?? '';
+$canExportTicketPdf = in_array($currentRoleForView, ['ADMIN', 'TECH'], true);
+$isAdminView = $currentRoleForView === 'ADMIN';
 
 /*
 |--------------------------------------------------------------------------
@@ -388,6 +391,18 @@ require_once __DIR__ . '/../layouts/header.php';
                                 <div class="ticket-detail-badges">
                                     <span class="ticket-badge status-badge"><?= htmlspecialchars(ucfirst(strtolower(str_replace('_', ' ', $ticket['status'])))) ?></span>
                                     <span class="ticket-badge priority-badge">Prioridad: <?= htmlspecialchars($ticket['priority'] ?? 'N/D') ?></span>
+
+                                    <?php if (!empty($canExportTicketPdf)): ?>
+                                        <a
+                                            href="/helpdesk-php/export-ticket-pdf.php?id=<?= (int)$ticket['id'] ?>"
+                                            class="ticket-detail-export-btn"
+                                            target="_blank"
+                                            rel="noopener"
+                                        >
+                                            <i class="fa-solid fa-file-pdf"></i>
+                                            Exportar PDF
+                                        </a>
+                                    <?php endif; ?>
                                 </div>
                             </div>
 
@@ -979,6 +994,18 @@ require_once __DIR__ . '/../layouts/header.php';
                 <div class="ticket-detail-badges">
                     <span class="ticket-badge status-badge"><?= htmlspecialchars($ticket['status'] ?? 'N/D') ?></span>
                     <span class="ticket-badge priority-badge">Prioridad: <?= htmlspecialchars($ticket['priority'] ?? 'N/D') ?></span>
+
+                    <?php if (!empty($canExportTicketPdf)): ?>
+                        <a
+                            href="/helpdesk-php/export-ticket-pdf.php?id=<?= (int)$ticket['id'] ?>"
+                            class="ticket-detail-export-btn"
+                            target="_blank"
+                            rel="noopener"
+                        >
+                            <i class="fa-solid fa-file-pdf"></i>
+                            Exportar PDF
+                        </a>
+                    <?php endif; ?>
                 </div>
             </div>
 

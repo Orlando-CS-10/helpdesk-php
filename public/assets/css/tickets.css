@@ -2058,11 +2058,6 @@
     gap: 8px;
 }
 
-.internal-section-title h3::before {
-    content: "🔒";
-    font-size: 17px;
-}
-
 .internal-chat-warning {
     display: flex;
     align-items: flex-start;
@@ -2240,6 +2235,68 @@ button.message-edit-btn {
     -webkit-appearance: none;
 }
 
+@media (max-width: 640px) {
+    .edit-message-compact-modal {
+        max-width: calc(100vw - 26px) !important;
+    }
+
+    .edit-message-compact-modal .custom-modal-footer {
+        flex-direction: column-reverse !important;
+    }
+
+    .edit-message-compact-modal .custom-modal-footer .btn-primary,
+    .edit-message-compact-modal .custom-modal-footer .btn-secondary {
+        width: 100% !important;
+    }
+}
+
+/* ============================= */
+/* BOTÓN EXPORTAR PDF EN DETALLE */
+/* ============================= */
+.ticket-detail-export-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    min-height: 36px;
+    padding: 8px 13px;
+    border-radius: 999px;
+    border: 1px solid rgba(255, 122, 0, 0.34);
+    background: linear-gradient(135deg, #ff7a00, #f97316);
+    color: #ffffff !important;
+    font-size: 12px;
+    font-weight: 900;
+    text-decoration: none;
+    box-shadow: 0 10px 20px rgba(255, 122, 0, 0.20);
+    transition: transform 0.18s ease, box-shadow 0.18s ease, filter 0.18s ease;
+    white-space: nowrap;
+}
+
+.ticket-detail-export-btn:hover {
+    transform: translateY(-1px);
+    filter: brightness(1.02);
+    box-shadow: 0 13px 26px rgba(255, 122, 0, 0.28);
+}
+
+.ticket-detail-export-btn:active {
+    transform: translateY(0);
+}
+
+.ticket-detail-export-btn i {
+    font-size: 13px;
+}
+
+@media (max-width: 720px) {
+    .ticket-detail-badges {
+        width: 100%;
+    }
+
+    .ticket-detail-export-btn {
+        width: 100%;
+        border-radius: 13px;
+    }
+}
+
 /* ============================= */
 /* PAGINACIÓN LISTADO DE TICKETS */
 /* ============================= */
@@ -2305,6 +2362,11 @@ button.message-edit-btn {
 .ticket-pagination-summary strong {
     color: #0f3d2e;
     font-weight: 900;
+}
+
+.ticket-pagination-hint {
+    color: #ff7a00;
+    font-weight: 800;
 }
 
 .tickets-pagination {
@@ -2388,21 +2450,5 @@ button.message-edit-btn {
 
     .tickets-page-btn {
         flex: 1;
-    }
-}
-
-
-@media (max-width: 640px) {
-    .edit-message-compact-modal {
-        max-width: calc(100vw - 26px) !important;
-    }
-
-    .edit-message-compact-modal .custom-modal-footer {
-        flex-direction: column-reverse !important;
-    }
-
-    .edit-message-compact-modal .custom-modal-footer .btn-primary,
-    .edit-message-compact-modal .custom-modal-footer .btn-secondary {
-        width: 100% !important;
     }
 }
