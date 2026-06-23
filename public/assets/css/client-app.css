@@ -1,0 +1,15 @@
+/* Paquete principal completo para portada y vistas públicas */
+@import url('variables.css?v=20260622-final-2');
+@import url('reset.css?v=20260622-final-2');
+@import url('components.css?v=20260622-final-2');
+
+/* Home, base de conocimientos y página individual del artículo */
+@import url('layout-public.css?v=20260622-clean-header-photo-1');
+
+/* Formularios, tickets y notificaciones del cliente */
+@import url('forms.css?v=20260622-final-2');
+@import url('modals.css?v=20260622-final-2');
+@import url('tickets.css?v=20260622-final-2');
+@import url('notifications.css?v=20260622-final-2');
+
+@import url('responsive.css?v=20260622-final-2');

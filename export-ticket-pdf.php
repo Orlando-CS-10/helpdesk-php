@@ -2,6 +2,8 @@
 require_once __DIR__ . '/app/helpers/session.php';
 require_once __DIR__ . '/app/config/database.php';
 require_once __DIR__ . '/app/helpers/business_hours.php';
+require_once __DIR__ . '/app/helpers/sla_helper.php';
+require_once __DIR__ . '/app/helpers/ticket_message_helper.php';
 
 requireLogin();
 
@@ -159,6 +161,94 @@ function renderRows(array $rows, array $columns, string $emptyMessage): string
     return $html;
 }
 
+
+function pdfInlineAttachmentDataUri(array $attachment): ?string
+{
+    if ((int)($attachment['is_inline'] ?? 0) !== 1) {
+        return null;
+    }
+
+    $relativePath = ltrim((string)($attachment['storage_path'] ?? ''), '/');
+    $mimeType = (string)($attachment['mime_type'] ?? '');
+
+    if ($relativePath === '' || !str_starts_with($mimeType, 'image/')) {
+        return null;
+    }
+
+    $absolutePath = ticketStorageBasePath() . '/' . $relativePath;
+
+    if (!is_file($absolutePath)) {
+        return null;
+    }
+
+    $content = file_get_contents($absolutePath);
+
+    if ($content === false) {
+        return null;
+    }
+
+    return 'data:' . $mimeType . ';base64,' . base64_encode($content);
+}
+
+function pdfRenderMessageBody(array $message, array $attachments): string
+{
+    $format = strtolower((string)($message['message_format'] ?? 'plain'));
+    $body = $format === 'html'
+        ? ticketSanitizeRichHtml((string)($message['message'] ?? ''))
+        : nl2br(e_pdf($message['message'] ?? ''));
+
+    foreach ($attachments as $attachment) {
+        $attachmentId = (int)($attachment['id'] ?? 0);
+        $dataUri = pdfInlineAttachmentDataUri($attachment);
+
+        if ($attachmentId <= 0 || $dataUri === null) {
+            continue;
+        }
+
+        $publicUrl = '/helpdesk-php/download-message-attachment.php?id='
+            . $attachmentId
+            . '&inline=1';
+
+        $body = str_replace($publicUrl, $dataUri, $body);
+        $body = str_replace(
+            htmlspecialchars($publicUrl, ENT_QUOTES, 'UTF-8'),
+            $dataUri,
+            $body
+        );
+    }
+
+    return '<div class="pdf-rich-message">' . $body . '</div>';
+}
+
+function pdfRenderMessageDocuments(array $attachments): string
+{
+    $documents = array_values(array_filter(
+        $attachments,
+        static fn(array $attachment): bool => (int)($attachment['is_inline'] ?? 0) !== 1
+    ));
+
+    if (empty($documents)) {
+        return '';
+    }
+
+    $html = '<div class="pdf-attachments">';
+
+    foreach ($documents as $attachment) {
+        $extension = strtoupper(pathinfo(
+            (string)($attachment['original_name'] ?? ''),
+            PATHINFO_EXTENSION
+        ));
+
+        $html .= '<div class="pdf-attachment">'
+            . '<strong>' . e_pdf($extension !== '' ? $extension : 'FILE') . '</strong>'
+            . '<span>' . e_pdf($attachment['original_name'] ?? 'Archivo adjunto') . '</span>'
+            . '<em>' . e_pdf(ticketFormatBytes((int)($attachment['file_size'] ?? 0))) . '</em>'
+            . '</div>';
+    }
+
+    return $html . '</div>';
+}
+
 // =============================
 // Datos del ticket
 // =============================
@@ -169,13 +259,20 @@ $sqlTicket = "SELECT
                 requester.phone AS requester_phone,
                 requester.position AS requester_position,
                 requester.company AS requester_company,
+                requester.company_id AS requester_company_id,
                 assigned.name AS assigned_name,
                 assigned.email AS assigned_email,
                 assigned.role AS assigned_role,
-                assigned.tech_level AS assigned_level
+                assigned.tech_level AS assigned_level,
+                company.business_name AS company_business_name,
+                company.trade_name AS company_trade_name,
+                company.ruc AS company_ruc,
+                company.sla_contract_type AS sla_contract_type
               FROM tickets t
               INNER JOIN users requester ON requester.id = t.requester_id
               LEFT JOIN users assigned ON assigned.id = t.assigned_to
+              LEFT JOIN client_companies company
+                ON company.id = COALESCE(t.company_id, requester.company_id)
               WHERE t.id = :ticket_id
               LIMIT 1";
 
@@ -188,7 +285,11 @@ if (!$ticket) {
     exit;
 }
 
-$sqlMessages = "SELECT tm.*, u.name, u.role
+$publicFormatSelect = ticketColumnExists($pdo, 'ticket_messages', 'message_format')
+    ? 'tm.message_format'
+    : "'plain' AS message_format";
+
+$sqlMessages = "SELECT tm.*, {$publicFormatSelect}, u.name, u.role
                 FROM ticket_messages tm
                 INNER JOIN users u ON u.id = tm.user_id
                 WHERE tm.ticket_id = :ticket_id
@@ -196,6 +297,12 @@ $sqlMessages = "SELECT tm.*, u.name, u.role
 $stmtMessages = $pdo->prepare($sqlMessages);
 $stmtMessages->execute(['ticket_id' => $ticketId]);
 $messages = $stmtMessages->fetchAll(PDO::FETCH_ASSOC);
+
+$messageAttachments = ticketLoadAttachmentsMap(
+    $pdo,
+    'PUBLIC',
+    array_column($messages, 'id')
+);
 
 $sqlActivities = "SELECT *
                   FROM ticket_activity
@@ -233,8 +340,18 @@ $stmtClientTickets->execute(['client_id' => $ticket['requester_id']]);
 $clientTickets = $stmtClientTickets->fetchAll(PDO::FETCH_ASSOC);
 
 $internalMessages = [];
-if (tableExists($pdo, 'ticket_internal_messages')) {
-    $sqlInternal = "SELECT tim.*, u.name, u.role
+$internalMessageAttachments = [];
+
+if (ticketTableExists($pdo, 'ticket_internal_messages')) {
+    $internalFormatSelect = ticketColumnExists(
+        $pdo,
+        'ticket_internal_messages',
+        'message_format'
+    )
+        ? 'tim.message_format'
+        : "'plain' AS message_format";
+
+    $sqlInternal = "SELECT tim.*, {$internalFormatSelect}, u.name, u.role
                     FROM ticket_internal_messages tim
                     INNER JOIN users u ON u.id = tim.user_id
                     WHERE tim.ticket_id = :ticket_id
@@ -243,28 +360,33 @@ if (tableExists($pdo, 'ticket_internal_messages')) {
     $stmtInternal = $pdo->prepare($sqlInternal);
     $stmtInternal->execute(['ticket_id' => $ticketId]);
     $internalMessages = $stmtInternal->fetchAll(PDO::FETCH_ASSOC);
+
+    $internalMessageAttachments = ticketLoadAttachmentsMap(
+        $pdo,
+        'INTERNAL',
+        array_column($internalMessages, 'id')
+    );
 }
 
 $firstResponseAt = $ticket['level_first_response_at'] ?? $ticket['first_response_at'] ?? null;
 $closedAt = $ticket['closed_at'] ?? null;
+
 if (empty($closedAt) && ($ticket['status'] ?? '') === 'CERRADO') {
     $closedAt = $ticket['updated_at'] ?? null;
 }
 
-$ttaLabel = pdfBusinessDuration($ticket['created_at'] ?? null, $firstResponseAt, empty($firstResponseAt));
-$ttrLabel = pdfBusinessDuration($ticket['created_at'] ?? null, $closedAt, ($ticket['status'] ?? '') !== 'CERRADO');
+$ttaHours = getTicketTtaHours($ticket);
+$ttrHours = getTicketTtrHours($ticket);
+$ttaLabel = $ttaHours === null ? 'Pendiente' : formatSlaDuration($ttaHours);
+$ttrLabel = $ttrHours === null ? 'Pendiente' : formatSlaDuration($ttrHours);
 
-$slaLabel = 'Pendiente';
-$slaClass = 'badge-pending';
-if (($ticket['sla_met'] ?? null) !== null) {
-    if ((int)$ticket['sla_met'] === 1) {
-        $slaLabel = 'Cumplido';
-        $slaClass = 'badge-success';
-    } else {
-        $slaLabel = 'No cumplido';
-        $slaClass = 'badge-danger';
-    }
-}
+$slaTimer = getSlaTimerData($ticket);
+$slaLabel = $slaTimer['status_label'] ?? getSlaStatusLabel($ticket);
+$slaClass = match (true) {
+    str_contains($slaLabel, 'cumplido'), $slaLabel === 'Dentro del SLA' => 'badge-success',
+    str_contains($slaLabel, 'vencido'), str_contains($slaLabel, 'fuera') => 'badge-danger',
+    default => 'badge-pending',
+};
 
 $logoPathPng = __DIR__ . '/public/assets/img/pronet-logo.png';
 $logoBase64 = '';
@@ -280,6 +402,8 @@ if (empty($messages)) {
     $messagesHtml = '<div class="empty-box">No hay mensajes registrados en la conversación.</div>';
 } else {
     foreach ($messages as $message) {
+        $attachments = $messageAttachments[(int)$message['id']] ?? [];
+
         $messagesHtml .= '<div class="message-box">
             <div class="avatar">' . e_pdf(pdfInitials($message['name'] ?? '')) . '</div>
             <div class="message-content">
@@ -287,9 +411,10 @@ if (empty($messages)) {
                     <strong>' . e_pdf($message['name'] ?? 'Usuario') . '</strong>
                     <span>' . e_pdf(pdfRoleLabel($message['role'] ?? '')) . '</span>
                     <em>' . e_pdf(pdfDate($message['created_at'] ?? null)) . '</em>
-                </div>
-                <p>' . nl2br(e_pdf($message['message'] ?? '')) . '</p>
-            </div>
+                </div>'
+                . pdfRenderMessageBody($message, $attachments)
+                . pdfRenderMessageDocuments($attachments)
+            . '</div>
         </div>';
     }
 }
@@ -299,6 +424,8 @@ if (empty($internalMessages)) {
     $internalHtml = '<div class="empty-box">No hay mensajes internos registrados.</div>';
 } else {
     foreach ($internalMessages as $message) {
+        $attachments = $internalMessageAttachments[(int)$message['id']] ?? [];
+
         $internalHtml .= '<div class="message-box internal-message-box">
             <div class="avatar internal-avatar">' . e_pdf(pdfInitials($message['name'] ?? '')) . '</div>
             <div class="message-content">
@@ -306,9 +433,10 @@ if (empty($internalMessages)) {
                     <strong>' . e_pdf($message['name'] ?? 'Usuario') . '</strong>
                     <span>' . e_pdf(pdfRoleLabel($message['role'] ?? '')) . '</span>
                     <em>' . e_pdf(pdfDate($message['created_at'] ?? null)) . '</em>
-                </div>
-                <p>' . nl2br(e_pdf($message['message'] ?? '')) . '</p>
-            </div>
+                </div>'
+                . pdfRenderMessageBody($message, $attachments)
+                . pdfRenderMessageDocuments($attachments)
+            . '</div>
         </div>';
     }
 }
@@ -402,6 +530,24 @@ $html = '<!DOCTYPE html>
     .data-table tr:nth-child(even) td { background: #f8fafc; }
     .empty-box { padding: 12px; border: 1px dashed #cbd5e1; border-radius: 12px; background: #f8fafc; color: #64748b; text-align: center; }
     .footer { position: fixed; left: 24px; right: 24px; bottom: 9px; color: #94a3b8; font-size: 9px; text-align: center; }
+
+    .pdf-rich-message { color: #334155; font-size: 10px; line-height: 1.5; }
+    .pdf-rich-message p, .pdf-rich-message div { margin: 0 0 6px; }
+    .pdf-rich-message h1, .pdf-rich-message h2, .pdf-rich-message h3 { color: #0f172a; margin: 8px 0 5px; }
+    .pdf-rich-message h1 { font-size: 18px; }
+    .pdf-rich-message h2 { font-size: 15px; }
+    .pdf-rich-message h3 { font-size: 13px; }
+    .pdf-rich-message ul, .pdf-rich-message ol { margin: 5px 0 7px 18px; padding: 0; }
+    .pdf-rich-message blockquote { margin: 6px 0; padding: 6px 8px; border-left: 3px solid #ff7a00; background: #fff8f1; }
+    .pdf-rich-message pre { padding: 7px; border-radius: 7px; background: #111827; color: #f8fafc; white-space: pre-wrap; }
+    .pdf-rich-message img { display: block; max-width: 470px; max-height: 340px; margin: 7px 0; border: 1px solid #dbe3ec; border-radius: 9px; }
+    .pdf-attachments { margin-top: 7px; }
+    .pdf-attachment { display: table; width: 100%; margin-top: 4px; padding: 6px 8px; border: 1px solid #dbe3ec; border-radius: 8px; background: #f8fafc; box-sizing: border-box; }
+    .pdf-attachment strong, .pdf-attachment span, .pdf-attachment em { display: table-cell; vertical-align: middle; }
+    .pdf-attachment strong { width: 42px; color: #0f5132; font-size: 8px; }
+    .pdf-attachment span { color: #334155; font-size: 9px; }
+    .pdf-attachment em { width: 70px; color: #64748b; font-size: 8px; font-style: normal; text-align: right; }
+
 </style>
 </head>
 <body>
@@ -438,7 +584,7 @@ $html = '<!DOCTYPE html>
 <div class="section">
     <div class="section-title">Indicadores operativos</div>
     <table class="metrics-table"><tr>
-        <td class="metric"><span>SLA objetivo</span><strong>' . (int)($ticket['sla_hours'] ?? 0) . ' h</strong></td>
+        <td class="metric"><span>Contrato / objetivo</span><strong>' . e_pdf($slaTimer['contract_label'] ?? 'Contrato 8/5') . ' · ' . e_pdf(formatSlaDuration($ticket['sla_hours'] ?? 0)) . '</strong></td>
         <td class="metric"><span>Tiempo de respuesta (TTA)</span><strong>' . e_pdf($ttaLabel) . '</strong></td>
         <td class="metric"><span>Tiempo de resolución (TTR)</span><strong>' . e_pdf($ttrLabel) . '</strong></td>
         <td class="metric"><span>Cumplimiento SLA</span><strong>' . e_pdf($slaLabel) . '</strong></td>
@@ -453,7 +599,7 @@ $html = '<!DOCTYPE html>
         <td><span>Teléfono</span><strong>' . e_pdf($ticket['requester_phone'] ?? 'No registrado') . '</strong></td>
     </tr><tr>
         <td><span>Cargo</span><strong>' . e_pdf($ticket['requester_position'] ?? 'No registrado') . '</strong></td>
-        <td><span>Empresa</span><strong>' . e_pdf($ticket['requester_company'] ?? 'No registrado') . '</strong></td>
+        <td><span>Empresa</span><strong>' . e_pdf($ticket['company_business_name'] ?? $ticket['requester_company'] ?? 'No registrado') . '</strong></td>
         <td><span>Tickets del cliente</span><strong>' . (int)($clientStats['total_tickets'] ?? 0) . ' total / ' . (int)($clientStats['open_tickets'] ?? 0) . ' activos / ' . (int)($clientStats['closed_tickets'] ?? 0) . ' cerrados</strong></td>
     </tr></table>
 </div>

@@ -1,318 +1,317 @@
 <?php
-// ======================================================
-// 1. CARGAR SESIÓN Y CONEXIÓN A BASE DE DATOS
-// ======================================================
+
 require_once __DIR__ . '/app/helpers/session.php';
 require_once __DIR__ . '/app/config/database.php';
+require_once __DIR__ . '/app/helpers/sla_helper.php';
+require_once __DIR__ . '/app/helpers/ticket_message_helper.php';
 
-// Obliga a que el usuario haya iniciado sesión
 requireLogin();
 
+$ticketId = isset($_GET['id']) ? (int)$_GET['id'] : 0;
 
-// ======================================================
-// 2. OBTENER ID DEL TICKET DESDE LA URL
-//    Ejemplo: ticket-detail.php?id=11
-// ======================================================
-$ticketId = isset($_GET['id']) ? (int) $_GET['id'] : 0;
-
-// Si no llega un id válido, lo mandamos al home
 if ($ticketId <= 0) {
     header('Location: /helpdesk-php/home.php');
     exit;
 }
 
-
-// ======================================================
-// 3. DATOS DEL USUARIO ACTUAL
-// ======================================================
-$currentUser = user();
-$currentRole = $currentUser['role'] ?? '';
+$currentUser = (array)user();
+$currentUserId = (int)($currentUser['id'] ?? 0);
+$currentRole = strtoupper((string)($currentUser['role'] ?? ''));
 $canUseInternalConversation = in_array($currentRole, ['ADMIN', 'TECH'], true);
 
+$currentUserCompanyId = null;
+$currentUserCanViewCompanyTickets = false;
 
-// ======================================================
-// 4. CONSULTAR EL TICKET SEGÚN EL ROL
-//    - Si es CLIENT: solo puede ver sus propios tickets
-//    - Si es ADMIN o TECH: puede ver cualquier ticket
-//
-//    Aquí también calculamos:
-//    - tta_hours = tiempo entre apertura y primera respuesta
-//    - ttr_hours = tiempo entre apertura y cierre
-// ======================================================
-if ($currentRole === 'CLIENT') {
-    $sql = "SELECT
-                t.*,
-                u.name AS requester_name,
-                a.name AS assigned_name,
+if ($currentRole === 'CLIENT' && $currentUserId > 0) {
+    $currentAccessStatement = $pdo->prepare(
+        'SELECT company_id, can_view_company_tickets
+         FROM users
+         WHERE id = :user_id
+         LIMIT 1'
+    );
+    $currentAccessStatement->execute(['user_id' => $currentUserId]);
+    $currentAccess = $currentAccessStatement->fetch(PDO::FETCH_ASSOC) ?: [];
 
-                CASE
-                    WHEN t.first_response_at IS NOT NULL
-                    THEN TIMESTAMPDIFF(HOUR, t.created_at, t.first_response_at)
-                    ELSE NULL
-                END AS tta_hours,
-
-                CASE
-                    WHEN t.closed_at IS NOT NULL
-                    THEN TIMESTAMPDIFF(HOUR, t.created_at, t.closed_at)
-                    ELSE NULL
-                END AS ttr_hours
-
-            FROM tickets t
-            INNER JOIN users u ON u.id = t.requester_id
-            LEFT JOIN users a ON a.id = t.assigned_to
-            WHERE t.id = :ticket_id
-              AND t.requester_id = :requester_id
-            LIMIT 1";
-
-    $stmt = $pdo->prepare($sql);
-    $stmt->execute([
-        'ticket_id' => $ticketId,
-        'requester_id' => (int)$currentUser['id']
-    ]);
-} else {
-    $sql = "SELECT
-                t.*,
-                u.name AS requester_name,
-                a.name AS assigned_name,
-
-                CASE
-                    WHEN t.first_response_at IS NOT NULL
-                    THEN TIMESTAMPDIFF(HOUR, t.created_at, t.first_response_at)
-                    ELSE NULL
-                END AS tta_hours,
-
-                CASE
-                    WHEN t.closed_at IS NOT NULL
-                    THEN TIMESTAMPDIFF(HOUR, t.created_at, t.closed_at)
-                    ELSE NULL
-                END AS ttr_hours
-
-            FROM tickets t
-            INNER JOIN users u ON u.id = t.requester_id
-            LEFT JOIN users a ON a.id = t.assigned_to
-            WHERE t.id = :ticket_id
-            LIMIT 1";
-
-    $stmt = $pdo->prepare($sql);
-    $stmt->execute([
-        'ticket_id' => $ticketId
-    ]);
+    $currentUserCompanyId = !empty($currentAccess['company_id'])
+        ? (int)$currentAccess['company_id']
+        : null;
+    $currentUserCanViewCompanyTickets = (int)($currentAccess['can_view_company_tickets'] ?? 0) === 1;
 }
 
-// Guardamos el ticket encontrado
-$ticket = $stmt->fetch(PDO::FETCH_ASSOC);
+$ticketSelect = "
+    SELECT
+        t.*,
 
-// Si no existe o no tiene permiso, lo mandamos al home
+        requester.name AS requester_name,
+        requester.email AS requester_email,
+        requester.phone AS requester_phone,
+        requester.position AS requester_position,
+        requester.company AS requester_company_legacy,
+        requester.company_id AS requester_company_id,
+        requester.profile_photo AS requester_profile_photo,
+
+        assigned.name AS assigned_name,
+        assigned.email AS assigned_email,
+        assigned.tech_level AS assigned_level,
+        assigned.profile_photo AS assigned_profile_photo,
+
+        company.id AS client_company_id,
+        company.ruc AS company_ruc,
+        company.business_name AS company_business_name,
+        company.trade_name AS company_trade_name,
+        company.fiscal_address AS company_fiscal_address,
+        company.phone AS company_phone,
+        company.email AS company_email,
+        company.sla_contract_type AS sla_contract_type,
+
+        CASE
+            WHEN t.first_response_at IS NOT NULL
+            THEN TIMESTAMPDIFF(SECOND, t.created_at, t.first_response_at)
+            ELSE NULL
+        END AS tta_seconds_calendar,
+
+        CASE
+            WHEN t.closed_at IS NOT NULL
+            THEN TIMESTAMPDIFF(SECOND, t.created_at, t.closed_at)
+            ELSE NULL
+        END AS ttr_seconds_calendar
+
+    FROM tickets t
+    INNER JOIN users requester ON requester.id = t.requester_id
+    LEFT JOIN users assigned ON assigned.id = t.assigned_to
+    LEFT JOIN client_companies company
+        ON company.id = COALESCE(t.company_id, requester.company_id)
+";
+
+$params = ['ticket_id' => $ticketId];
+
+if ($currentRole === 'CLIENT') {
+    $accessWhere = 't.requester_id = :current_user_id';
+    $params['current_user_id'] = $currentUserId;
+
+    if ($currentUserCanViewCompanyTickets && $currentUserCompanyId !== null) {
+        $accessWhere = "(
+            t.requester_id = :current_user_id
+            OR COALESCE(t.company_id, requester.company_id) = :current_company_id
+        )";
+        $params['current_company_id'] = $currentUserCompanyId;
+    }
+
+    $ticketSelect .= "
+        WHERE t.id = :ticket_id
+          AND $accessWhere
+        LIMIT 1
+    ";
+} else {
+    $ticketSelect .= "
+        WHERE t.id = :ticket_id
+        LIMIT 1
+    ";
+}
+
+$ticketStatement = $pdo->prepare($ticketSelect);
+$ticketStatement->execute($params);
+$ticket = $ticketStatement->fetch(PDO::FETCH_ASSOC);
+
 if (!$ticket) {
+    $_SESSION['ticket_error'] = 'No se encontró el ticket o no tienes permiso para visualizarlo.';
     header('Location: /helpdesk-php/home.php');
     exit;
 }
 
+/*
+|--------------------------------------------------------------------------
+| Mensajes públicos
+|--------------------------------------------------------------------------
+*/
+$publicFormatSelect = ticketColumnExists($pdo, 'ticket_messages', 'message_format')
+    ? 'tm.message_format'
+    : "'plain' AS message_format";
 
-// ======================================================
-// 5. CARGAR MENSAJES DEL TICKET
-//    Esto se usa en la pestaña "Conversación"
-// ======================================================
-$sqlMessages = "SELECT
-                    tm.*,
-                    u.name,
-                    u.role
-                FROM ticket_messages tm
-                INNER JOIN users u ON u.id = tm.user_id
-                WHERE tm.ticket_id = :ticket_id
-                ORDER BY tm.created_at ASC";
+$publicUpdatedSelect = ticketColumnExists($pdo, 'ticket_messages', 'updated_at')
+    ? 'tm.updated_at'
+    : 'NULL AS updated_at';
 
-$stmtMessages = $pdo->prepare($sqlMessages);
-$stmtMessages->execute([
-    'ticket_id' => $ticketId
-]);
+$userPhotoSelect = ticketColumnExists($pdo, 'users', 'profile_photo')
+    ? 'u.profile_photo'
+    : 'NULL AS profile_photo';
 
-$messages = $stmtMessages->fetchAll(PDO::FETCH_ASSOC);
+$messageStatement = $pdo->prepare(
+    "SELECT
+        tm.*,
+        $publicFormatSelect,
+        $publicUpdatedSelect,
+        u.name,
+        u.role,
+        $userPhotoSelect
+     FROM ticket_messages tm
+     INNER JOIN users u ON u.id = tm.user_id
+     WHERE tm.ticket_id = :ticket_id
+     ORDER BY tm.created_at ASC, tm.id ASC"
+);
+$messageStatement->execute(['ticket_id' => $ticketId]);
+$messages = $messageStatement->fetchAll(PDO::FETCH_ASSOC);
 
+$messageAttachments = ticketLoadAttachmentsMap(
+    $pdo,
+    'PUBLIC',
+    array_column($messages, 'id')
+);
 
-// ======================================================
-// 6. CARGAR FEEDBACK DEL TICKET
-//    - El CLIENT puede ver el feedback de su ticket
-//    - El ADMIN también puede verlo
-// ======================================================
+/*
+|--------------------------------------------------------------------------
+| Evaluación
+|--------------------------------------------------------------------------
+*/
 $feedback = null;
+$canSeeFeedback = in_array($currentRole, ['ADMIN', 'TECH'], true)
+    || (
+        $currentRole === 'CLIENT'
+        && (int)$ticket['requester_id'] === $currentUserId
+    );
 
-if (
-    $currentRole === 'CLIENT' &&
-    (int)$ticket['requester_id'] === (int)$currentUser['id']
-) {
-    $sqlFeedback = "SELECT *
-                    FROM ticket_feedback
-                    WHERE ticket_id = :ticket_id
-                    LIMIT 1";
-
-    $stmtFeedback = $pdo->prepare($sqlFeedback);
-    $stmtFeedback->execute([
-        'ticket_id' => $ticketId
-    ]);
-
-    $feedback = $stmtFeedback->fetch(PDO::FETCH_ASSOC);
+if ($canSeeFeedback && ticketTableExists($pdo, 'ticket_feedback')) {
+    $feedbackStatement = $pdo->prepare(
+        'SELECT *
+         FROM ticket_feedback
+         WHERE ticket_id = :ticket_id
+         LIMIT 1'
+    );
+    $feedbackStatement->execute(['ticket_id' => $ticketId]);
+    $feedback = $feedbackStatement->fetch(PDO::FETCH_ASSOC) ?: null;
 }
 
-if ($currentRole === 'ADMIN') {
-    $sqlFeedback = "SELECT *
-                    FROM ticket_feedback
-                    WHERE ticket_id = :ticket_id
-                    LIMIT 1";
+/*
+|--------------------------------------------------------------------------
+| Actividad
+|--------------------------------------------------------------------------
+*/
+$activities = [];
+$lastActivity = null;
 
-    $stmtFeedback = $pdo->prepare($sqlFeedback);
-    $stmtFeedback->execute([
-        'ticket_id' => $ticketId
-    ]);
-
-    $feedback = $stmtFeedback->fetch(PDO::FETCH_ASSOC);
+if (ticketTableExists($pdo, 'ticket_activity')) {
+    $activityStatement = $pdo->prepare(
+        'SELECT
+            ta.id,
+            ta.ticket_id,
+            ta.user_id,
+            ta.actor_name,
+            ta.actor_role,
+            ta.activity_type,
+            ta.activity_type AS action_type,
+            ta.description,
+            ta.old_value,
+            ta.new_value,
+            ta.created_at
+         FROM ticket_activity ta
+         WHERE ta.ticket_id = :ticket_id
+         ORDER BY ta.created_at ASC, ta.id ASC'
+    );
+    $activityStatement->execute(['ticket_id' => $ticketId]);
+    $activities = $activityStatement->fetchAll(PDO::FETCH_ASSOC);
+$lastActivity = !empty($activities)
+    ? $activities[array_key_last($activities)]
+    : null;
 }
 
-
-// ======================================================
-// 7. CARGAR ACTIVIDAD DEL TICKET
-//    Esto se usa en la pestaña "Actividad de ticket"
-// ======================================================
-$sqlActivities = "SELECT
-                    ta.id,
-                    ta.ticket_id,
-                    ta.user_id,
-                    ta.actor_name,
-                    ta.actor_role,
-                    ta.activity_type,
-                    ta.activity_type AS action_type,
-                    ta.description,
-                    ta.old_value,
-                    ta.new_value,
-                    ta.created_at
-                  FROM ticket_activity ta
-                  WHERE ta.ticket_id = :ticket_id
-                  ORDER BY ta.created_at ASC, ta.id ASC";
-
-$stmtActivities = $pdo->prepare($sqlActivities);
-$stmtActivities->execute([
-    'ticket_id' => $ticketId
-]);
-
-$activities = $stmtActivities->fetchAll(PDO::FETCH_ASSOC);
-
-
-// ======================================================
-// 7.1. CARGAR CONVERSACIÓN INTERNA
-//      Solo ADMIN y TECH pueden ver estos mensajes.
-//      El CLIENT no recibe esta información desde backend.
-// ======================================================
+/*
+|--------------------------------------------------------------------------
+| Conversación interna
+|--------------------------------------------------------------------------
+*/
 $internalMessages = [];
+$internalMessageAttachments = [];
 
-if ($canUseInternalConversation) {
-    $sqlInternalMessages = "SELECT
-                                tim.*,
-                                u.name,
-                                u.role
-                            FROM ticket_internal_messages tim
-                            INNER JOIN users u ON u.id = tim.user_id
-                            WHERE tim.ticket_id = :ticket_id
-                              AND tim.deleted_at IS NULL
-                            ORDER BY tim.created_at ASC, tim.id ASC";
+if ($canUseInternalConversation && ticketTableExists($pdo, 'ticket_internal_messages')) {
+    $internalFormatSelect = ticketColumnExists(
+        $pdo,
+        'ticket_internal_messages',
+        'message_format'
+    )
+        ? 'tim.message_format'
+        : "'plain' AS message_format";
 
-    $stmtInternalMessages = $pdo->prepare($sqlInternalMessages);
-    $stmtInternalMessages->execute([
-        'ticket_id' => $ticketId
-    ]);
+    $internalStatement = $pdo->prepare(
+        "SELECT
+            tim.*,
+            $internalFormatSelect,
+            u.name,
+            u.role,
+            $userPhotoSelect
+         FROM ticket_internal_messages tim
+         INNER JOIN users u ON u.id = tim.user_id
+         WHERE tim.ticket_id = :ticket_id
+           AND (tim.deleted_at IS NULL OR tim.deleted_at = '0000-00-00 00:00:00')
+         ORDER BY tim.created_at ASC, tim.id ASC"
+    );
+    $internalStatement->execute(['ticket_id' => $ticketId]);
+    $internalMessages = $internalStatement->fetchAll(PDO::FETCH_ASSOC);
 
-    $internalMessages = $stmtInternalMessages->fetchAll(PDO::FETCH_ASSOC);
+    $internalMessageAttachments = ticketLoadAttachmentsMap(
+        $pdo,
+        'INTERNAL',
+        array_column($internalMessages, 'id')
+    );
 }
 
+/*
+|--------------------------------------------------------------------------
+| Cliente y empresa
+|--------------------------------------------------------------------------
+*/
+$clientInfoStatement = $pdo->prepare(
+    'SELECT
+        u.id,
+        u.name,
+        u.email,
+        u.role,
+        u.phone,
+        u.position,
+        u.company,
+        u.company_id,
+        u.profile_photo,
+        u.created_at,
+        c.ruc,
+        c.business_name,
+        c.trade_name,
+        c.fiscal_address,
+        c.phone AS company_phone,
+        c.email AS company_email,
+        c.sla_contract_type
+     FROM users u
+     LEFT JOIN client_companies c ON c.id = u.company_id
+     WHERE u.id = :client_id
+     LIMIT 1'
+);
+$clientInfoStatement->execute(['client_id' => (int)$ticket['requester_id']]);
+$clientInfo = $clientInfoStatement->fetch(PDO::FETCH_ASSOC) ?: [];
 
-// ======================================================
-// 8. CARGAR INFORMACIÓN DEL CLIENTE
-//    Esto se usa en el panel derecho del admin
-// ======================================================
-$clientInfo = null;
+$clientStatsStatement = $pdo->prepare(
+    "SELECT
+        COUNT(*) AS total_tickets,
+        SUM(CASE WHEN status IN ('ABIERTO', 'EN_PROCESO', 'RESPONDIDO') THEN 1 ELSE 0 END) AS open_tickets,
+        SUM(CASE WHEN status = 'CERRADO' THEN 1 ELSE 0 END) AS closed_tickets
+     FROM tickets
+     WHERE requester_id = :client_id"
+);
+$clientStatsStatement->execute(['client_id' => (int)$ticket['requester_id']]);
+$clientStatsRaw = $clientStatsStatement->fetch(PDO::FETCH_ASSOC) ?: [];
 
-$sqlClient = "SELECT
-                id,
-                name,
-                email,
-                role,
-                phone,
-                position,
-                company,
-                created_at
-              FROM users
-              WHERE id = :client_id
-              LIMIT 1";
-
-$stmtClient = $pdo->prepare($sqlClient);
-$stmtClient->execute([
-    'client_id' => $ticket['requester_id']
-]);
-
-$clientInfo = $stmtClient->fetch(PDO::FETCH_ASSOC);
-
-
-// ======================================================
-// 9. ESTADÍSTICAS DEL CLIENTE
-//    - total_tickets
-//    - open_tickets
-//    - closed_tickets
-// ======================================================
 $clientStats = [
-    'total_tickets' => 0,
-    'open_tickets' => 0,
-    'closed_tickets' => 0
+    'total_tickets' => (int)($clientStatsRaw['total_tickets'] ?? 0),
+    'open_tickets' => (int)($clientStatsRaw['open_tickets'] ?? 0),
+    'closed_tickets' => (int)($clientStatsRaw['closed_tickets'] ?? 0),
 ];
 
-$sqlClientStats = "SELECT
-                    COUNT(*) AS total_tickets,
-                    SUM(CASE WHEN status IN ('ABIERTO', 'EN_PROCESO', 'RESPONDIDO') THEN 1 ELSE 0 END) AS open_tickets,
-                    SUM(CASE WHEN status = 'CERRADO' THEN 1 ELSE 0 END) AS closed_tickets
-                  FROM tickets
-                  WHERE requester_id = :client_id";
+$clientTicketsStatement = $pdo->prepare(
+    'SELECT id, subject, status, priority, created_at
+     FROM tickets
+     WHERE requester_id = :client_id
+     ORDER BY created_at DESC, id DESC'
+);
+$clientTicketsStatement->execute(['client_id' => (int)$ticket['requester_id']]);
+$clientTickets = $clientTicketsStatement->fetchAll(PDO::FETCH_ASSOC);
 
-$stmtClientStats = $pdo->prepare($sqlClientStats);
-$stmtClientStats->execute([
-    'client_id' => $ticket['requester_id']
-]);
+$slaTimer = getSlaTimerData($ticket);
 
-$clientStatsRaw = $stmtClientStats->fetch(PDO::FETCH_ASSOC);
-
-if ($clientStatsRaw) {
-    $clientStats = [
-        'total_tickets' => (int)($clientStatsRaw['total_tickets'] ?? 0),
-        'open_tickets' => (int)($clientStatsRaw['open_tickets'] ?? 0),
-        'closed_tickets' => (int)($clientStatsRaw['closed_tickets'] ?? 0),
-    ];
-}
-
-
-// ======================================================
-// 10. CARGAR TODOS LOS TICKETS DEL CLIENTE
-//     Esto se usa en el desplegable / modal del panel derecho
-// ======================================================
-$clientTickets = [];
-
-$sqlClientTickets = "SELECT
-                        id,
-                        subject,
-                        status,
-                        priority,
-                        created_at
-                     FROM tickets
-                     WHERE requester_id = :client_id
-                     ORDER BY created_at DESC";
-
-$stmtClientTickets = $pdo->prepare($sqlClientTickets);
-$stmtClientTickets->execute([
-    'client_id' => $ticket['requester_id']
-]);
-
-$clientTickets = $stmtClientTickets->fetchAll(PDO::FETCH_ASSOC);
-
-
-// ======================================================
-// 11. CARGAR LA VISTA FINAL
-//     Aquí enviamos todas las variables a:
-//     app/views/tickets/detail.php
-// ======================================================
 require __DIR__ . '/app/views/tickets/detail.php';

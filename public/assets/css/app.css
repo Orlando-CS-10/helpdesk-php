@@ -1,0 +1,22 @@
+/* Paquete principal del panel administrativo y técnico */
+@import url('variables.css?v=20260622-final-2');
+@import url('reset.css?v=20260622-final-2');
+@import url('components.css?v=20260622-final-2');
+
+@import url('admin-layout.css?v=20260622-admin-controls-global-1');
+@import url('admin-tables.css?v=20260622-final-2');
+
+@import url('forms.css?v=20260622-final-2');
+@import url('modals.css?v=20260622-final-2');
+@import url('tickets.css?v=20260622-final-2');
+@import url('notifications.css?v=20260622-final-2');
+@import url('admin-dashboard.css?v=20260622-final-2');
+
+@import url('create-user-modal.css?v=20260622-final-2');
+@import url('create-user-modal_empresas_sla.css?v=20260622-final-2');
+@import url('edit-user-empresa.css?v=20260622-final-2');
+
+/* Módulo con las 8 herramientas y editor enriquecido */
+@import url('admin-tools.css?v=20260622-final-2');
+
+@import url('responsive.css?v=20260622-final-2');

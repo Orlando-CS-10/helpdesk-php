@@ -403,3 +403,609 @@
 .admin-shell.sidebar-collapsed .admin-sidebar-nav i {
     margin-right: 0;
 }
+
+
+/* ============================= */
+/* FOTO DE PERFIL DE USUARIO */
+/* ============================= */
+.admin-brand-logo.has-photo,
+.admin-mini-avatar.has-photo,
+.admin-user-avatar.has-photo {
+    background: transparent !important;
+    padding: 0;
+    overflow: hidden;
+    border: 2px solid rgba(255, 255, 255, 0.18);
+}
+
+.admin-user-trigger .admin-user-avatar.has-photo {
+    border-color: #e7edf4;
+}
+
+.admin-user-dropdown-header .admin-user-avatar.has-photo {
+    border-color: #e7edf4;
+}
+
+.admin-avatar-photo {
+    width: 100%;
+    height: 100%;
+    display: block;
+    object-fit: cover;
+    border-radius: inherit;
+}
+
+.edit-user-photo-panel {
+    grid-column: 1 / -1;
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    padding: 18px;
+    border: 1px solid #e7edf4;
+    border-radius: 18px;
+    background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+}
+
+.edit-user-photo-preview {
+    width: 86px;
+    height: 86px;
+    border-radius: 24px;
+    background: #ff7a00;
+    color: #ffffff;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    flex-shrink: 0;
+    font-size: 30px;
+    font-weight: 900;
+    box-shadow: 0 14px 28px rgba(15, 23, 42, 0.10);
+}
+
+.edit-user-photo-preview.has-photo {
+    background: #ffffff;
+    border: 1px solid #dbe3ec;
+}
+
+.edit-user-photo-preview img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+
+.edit-user-photo-preview .is-hidden,
+.edit-user-photo-preview img.is-hidden {
+    display: none !important;
+}
+
+.edit-user-photo-info {
+    min-width: 0;
+    flex: 1;
+}
+
+.edit-user-photo-info strong {
+    display: block;
+    margin-bottom: 6px;
+    color: #0f172a;
+    font-size: 16px;
+}
+
+.edit-user-photo-info p {
+    margin: 0 0 12px;
+    color: #64748b;
+    font-size: 13px;
+    line-height: 1.5;
+}
+
+.edit-user-photo-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.edit-user-photo-upload-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    min-height: 40px;
+    padding: 0 14px;
+    border-radius: 13px;
+    border: 0;
+    background: #0f3d2e;
+    color: #ffffff;
+    font-size: 13px;
+    font-weight: 900;
+    cursor: pointer;
+    transition: all 0.18s ease;
+}
+
+.edit-user-photo-upload-btn:hover {
+    transform: translateY(-1px);
+    background: #1f7a5a;
+}
+
+#edit_user_profile_photo {
+    display: none;
+}
+
+.edit-user-photo-remove {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 40px;
+    padding: 0 12px;
+    border-radius: 13px;
+    border: 1px solid #fed7aa;
+    background: #fff7ed;
+    color: #9a3412;
+    font-size: 13px;
+    font-weight: 800;
+    cursor: pointer;
+}
+
+.edit-user-photo-remove input {
+    width: auto !important;
+    accent-color: #ff7a00;
+}
+
+@media (max-width: 640px) {
+    .edit-user-photo-panel {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .edit-user-photo-actions,
+    .edit-user-photo-upload-btn,
+    .edit-user-photo-remove {
+        width: 100%;
+    }
+}
+
+/* =========================================================
+   CONTROLES ADMINISTRATIVOS GLOBALES
+   Perfil desplegable + sidebar colapsable en todas las páginas
+   ========================================================= */
+.admin-shell {
+    width: 100%;
+    max-width: none;
+    grid-template-columns: 280px minmax(0, 1fr);
+}
+
+.admin-main {
+    min-width: 0;
+    overflow: visible;
+}
+
+.admin-topbar {
+    position: relative;
+    z-index: 1200;
+    overflow: visible;
+}
+
+.admin-topbar-right {
+    position: relative;
+    z-index: 1210;
+}
+
+.admin-home-link {
+    display: inline-flex;
+    min-height: 42px;
+    align-items: center;
+    gap: 8px;
+    padding: 0 14px;
+    text-decoration: none;
+}
+
+.admin-home-link svg {
+    width: 16px;
+    height: 16px;
+    fill: currentColor;
+}
+
+/* Notificaciones */
+.admin-notification-menu,
+.admin-user-menu {
+    position: relative;
+    z-index: 1250;
+}
+
+.admin-notification-trigger {
+    width: 44px;
+    height: 44px;
+    display: grid;
+    padding: 0;
+    place-items: center;
+}
+
+.admin-notification-trigger svg {
+    width: 18px;
+    height: 18px;
+    fill: currentColor;
+}
+
+.admin-notification-dropdown {
+    z-index: 2100;
+}
+
+/* Botón del usuario */
+.admin-user-trigger {
+    min-height: 48px;
+    gap: 10px;
+    padding: 5px 10px 5px 6px;
+}
+
+.admin-user-chevron {
+    width: 18px;
+    height: 18px;
+    flex: 0 0 18px;
+    fill: #64748b;
+    transition: transform 0.18s ease;
+}
+
+.admin-user-trigger[aria-expanded="true"] .admin-user-chevron {
+    transform: rotate(180deg);
+}
+
+.admin-user-avatar {
+    overflow: hidden;
+    border: 2px solid rgba(255, 122, 0, 0.20);
+    background: linear-gradient(145deg, #ff8a18, #ff6900);
+}
+
+.admin-user-avatar.has-photo {
+    border-color: #e2e8f0 !important;
+    background: #ffffff !important;
+}
+
+.admin-avatar-photo {
+    width: 100%;
+    height: 100%;
+    display: block;
+    border-radius: inherit;
+    object-fit: cover;
+    object-position: center;
+}
+
+/* Nuevo panel de opciones del usuario */
+.admin-user-dropdown {
+    top: calc(100% + 12px);
+    right: 0;
+    width: min(370px, calc(100vw - 30px));
+    max-height: min(720px, calc(100vh - 110px));
+    padding: 0;
+    overflow-x: hidden;
+    overflow-y: auto;
+    border: 1px solid #dfe7e3;
+    border-radius: 20px;
+    background: #ffffff;
+    box-shadow:
+        0 26px 70px rgba(5, 44, 31, 0.20),
+        0 5px 16px rgba(15, 23, 42, 0.06);
+    z-index: 2200;
+}
+
+.admin-user-dropdown::before {
+    position: absolute;
+    top: -7px;
+    right: 24px;
+    width: 14px;
+    height: 14px;
+    border-top: 1px solid #dfe7e3;
+    border-left: 1px solid #dfe7e3;
+    background: #f8fbf9;
+    content: "";
+    transform: rotate(45deg);
+}
+
+.admin-user-dropdown.show {
+    display: block;
+    animation: adminDropdownEnter 0.16s ease-out;
+}
+
+@keyframes adminDropdownEnter {
+    from {
+        opacity: 0;
+        transform: translateY(-5px) scale(0.985);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+.admin-user-dropdown-header {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin: 0;
+    padding: 20px;
+    border-bottom: 1px solid #e7eeea;
+    background:
+        radial-gradient(circle at 94% 12%, rgba(255, 122, 0, 0.11), transparent 31%),
+        linear-gradient(180deg, #fbfdfc, #f5f9f7);
+}
+
+.admin-user-dropdown-identity {
+    min-width: 0;
+}
+
+.admin-user-dropdown-identity .dropdown-name {
+    overflow: hidden;
+    color: #0f172a;
+    font-size: 17px;
+    font-weight: 900;
+    line-height: 1.2;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.admin-user-dropdown-identity .dropdown-role {
+    margin-top: 4px;
+    color: #0f5132;
+    font-size: 12px;
+    font-weight: 800;
+}
+
+.admin-user-dropdown-identity .dropdown-email {
+    overflow: hidden;
+    margin-top: 4px;
+    color: #7b899b;
+    font-size: 11px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.admin-user-dropdown-section {
+    padding: 14px 12px 8px;
+}
+
+.admin-user-dropdown-section + .admin-user-dropdown-section {
+    padding-top: 8px;
+}
+
+.admin-user-dropdown-account {
+    border-top: 1px solid #edf2ef;
+}
+
+.admin-user-dropdown-title {
+    display: block;
+    padding: 0 9px 8px;
+    color: #94a3b8;
+    font-size: 10px;
+    font-weight: 900;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+}
+
+.admin-user-dropdown-section a {
+    display: grid;
+    grid-template-columns: 38px minmax(0, 1fr);
+    align-items: center;
+    gap: 11px;
+    min-height: 57px;
+    padding: 9px 10px;
+    border-radius: 13px;
+    color: #263244;
+    text-decoration: none;
+    transition:
+        background 0.16s ease,
+        color 0.16s ease,
+        transform 0.16s ease;
+}
+
+.admin-user-dropdown-section a:hover {
+    transform: translateX(2px);
+    background: #f1f7f4;
+    color: #0f5132;
+}
+
+.admin-user-dropdown-section a > svg {
+    width: 36px;
+    height: 36px;
+    padding: 9px;
+    border-radius: 11px;
+    background: #edf5f1;
+    fill: #0f5132;
+}
+
+.admin-user-dropdown-section a > span {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+}
+
+.admin-user-dropdown-section a strong {
+    color: inherit;
+    font-size: 13px;
+    font-weight: 850;
+    line-height: 1.2;
+}
+
+.admin-user-dropdown-section a small {
+    overflow: hidden;
+    margin-top: 3px;
+    color: #7b899b;
+    font-size: 10px;
+    line-height: 1.25;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.admin-user-dropdown-footer {
+    padding: 11px 12px 13px;
+    border-top: 1px solid #e7eeea;
+    background: #fafcfa;
+}
+
+.admin-user-dropdown-footer a {
+    display: flex;
+    min-height: 45px;
+    align-items: center;
+    justify-content: center;
+    gap: 9px;
+    border: 1px solid #fecaca;
+    border-radius: 12px;
+    background: #fff7f7;
+    color: #dc2626;
+    font-size: 13px;
+    font-weight: 900;
+    text-decoration: none;
+    transition:
+        background 0.16s ease,
+        border-color 0.16s ease,
+        transform 0.16s ease;
+}
+
+.admin-user-dropdown-footer a:hover {
+    transform: translateY(-1px);
+    border-color: #fca5a5;
+    background: #fff0f0;
+}
+
+.admin-user-dropdown-footer svg {
+    width: 17px;
+    height: 17px;
+    fill: currentColor;
+}
+
+/* Sidebar colapsable global */
+.admin-sidebar {
+    overflow: visible;
+}
+
+.admin-sidebar-nav {
+    min-width: 0;
+    overflow-x: hidden;
+    overflow-y: auto;
+}
+
+.admin-sidebar-toggle {
+    z-index: 2300;
+}
+
+.admin-sidebar-toggle svg {
+    width: 18px;
+    height: 18px;
+    fill: currentColor;
+}
+
+.admin-shell.sidebar-collapsed {
+    grid-template-columns: 76px minmax(0, 1fr);
+}
+
+.admin-shell.sidebar-collapsed .admin-sidebar {
+    width: 76px;
+    min-width: 76px;
+    padding-right: 10px;
+    padding-left: 10px;
+}
+
+.admin-shell.sidebar-collapsed .admin-sidebar-brand {
+    justify-content: center;
+    gap: 0;
+    padding-right: 0;
+    padding-left: 0;
+}
+
+.admin-shell.sidebar-collapsed .admin-brand-logo {
+    width: 44px;
+    height: 44px;
+    flex: 0 0 44px;
+}
+
+.admin-shell.sidebar-collapsed .admin-brand-text,
+.admin-shell.sidebar-collapsed .admin-link-text {
+    display: none !important;
+}
+
+.admin-shell.sidebar-collapsed .admin-sidebar-nav {
+    width: 100%;
+    align-items: center;
+}
+
+.admin-shell.sidebar-collapsed .admin-sidebar-nav a {
+    width: 48px;
+    min-height: 46px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+}
+
+.admin-shell.sidebar-collapsed .admin-sidebar-nav a > span {
+    width: 100%;
+    justify-content: center;
+}
+
+.admin-shell.sidebar-collapsed .admin-sidebar-nav i {
+    margin: 0;
+    font-size: 17px;
+}
+
+.admin-shell.sidebar-collapsed .admin-sidebar-toggle {
+    right: -18px;
+}
+
+/* Evita que las tarjetas del dashboard cubran los menús */
+.admin-dashboard-hero,
+.admin-panel-card,
+.admin-kpi-card,
+.admin-chart-box {
+    position: relative;
+    z-index: 1;
+}
+
+@media (max-width: 900px) {
+    .admin-topbar {
+        position: relative;
+    }
+
+    .admin-user-dropdown {
+        position: fixed;
+        top: 76px;
+        right: 14px;
+        left: auto;
+        max-height: calc(100vh - 92px);
+    }
+
+    .admin-user-dropdown::before {
+        display: none;
+    }
+}
+
+@media (max-width: 680px) {
+    .admin-topbar-left h1 {
+        font-size: 29px;
+    }
+
+    .admin-topbar-right {
+        width: 100%;
+        justify-content: flex-end;
+    }
+
+    .admin-home-link span,
+    .admin-user-meta,
+    .admin-user-chevron {
+        display: none;
+    }
+
+    .admin-home-link {
+        width: 43px;
+        padding: 0;
+        justify-content: center;
+    }
+
+    .admin-user-trigger {
+        padding-right: 6px;
+    }
+
+    .admin-user-dropdown {
+        top: 70px;
+        right: 10px;
+        left: 10px;
+        width: auto;
+    }
+}

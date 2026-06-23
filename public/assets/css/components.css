@@ -69,3 +69,11 @@
     border: 1px solid #bbf7d0;
     font-size: 14px;
 }
+
+/* ============================= */
+/* BOTÓN LOGIN AISLADO */
+/* ============================= */
+.login-card .btn-primary,
+.login-card button[type="submit"] {
+    border: 0;
+}

@@ -1,32 +1,35 @@
 <?php
+
 require_once __DIR__ . '/app/helpers/session.php';
 require_once __DIR__ . '/app/config/database.php';
+require_once __DIR__ . '/app/helpers/ticket_message_helper.php';
 
 requireLogin();
 
-$messageId = isset($_GET['id']) ? (int) $_GET['id'] : 0;
+$messageId = isset($_GET['id']) ? (int)$_GET['id'] : 0;
 
 if ($messageId <= 0) {
     header('Location: /helpdesk-php/home.php');
     exit;
 }
 
-$currentUser = user();
-$currentRole = $currentUser['role'] ?? '';
+$currentUser = (array)user();
+$currentRole = strtoupper((string)($currentUser['role'] ?? ''));
+$currentUserId = (int)($currentUser['id'] ?? 0);
 
-$sql = "SELECT 
-            tm.id, 
-            tm.user_id, 
-            tm.ticket_id,
-            t.status AS ticket_status
-        FROM ticket_messages tm
-        INNER JOIN tickets t ON t.id = tm.ticket_id
-        WHERE tm.id = :id
-        LIMIT 1";
-
-$stmt = $pdo->prepare($sql);
-$stmt->execute(['id' => $messageId]);
-$message = $stmt->fetch(PDO::FETCH_ASSOC);
+$messageStatement = $pdo->prepare(
+    'SELECT
+        tm.id,
+        tm.user_id,
+        tm.ticket_id,
+        t.status AS ticket_status
+     FROM ticket_messages tm
+     INNER JOIN tickets t ON t.id = tm.ticket_id
+     WHERE tm.id = :message_id
+     LIMIT 1'
+);
+$messageStatement->execute(['message_id' => $messageId]);
+$message = $messageStatement->fetch(PDO::FETCH_ASSOC);
 
 if (!$message) {
     $_SESSION['ticket_error'] = 'El mensaje no existe.';
@@ -34,12 +37,12 @@ if (!$message) {
     exit;
 }
 
-$ticketId = (int) $message['ticket_id'];
+$ticketId = (int)$message['ticket_id'];
 $redirectUrl = '/helpdesk-php/ticket-detail.php?id=' . $ticketId . '#conversationTab';
 
 if (
-    $currentRole === 'CLIENT' &&
-    (int) $message['user_id'] !== (int) ($currentUser['id'] ?? 0)
+    $currentRole === 'CLIENT'
+    && (int)$message['user_id'] !== $currentUserId
 ) {
     $_SESSION['ticket_error'] = 'No tienes permiso para eliminar este mensaje.';
     header('Location: ' . $redirectUrl);
@@ -53,12 +56,26 @@ if (($message['ticket_status'] ?? '') === 'CERRADO') {
 }
 
 try {
-    $sqlDelete = "DELETE FROM ticket_messages WHERE id = :id";
-    $stmtDelete = $pdo->prepare($sqlDelete);
-    $stmtDelete->execute(['id' => $messageId]);
+    $pdo->beginTransaction();
+
+    $attachmentPaths = ticketDeleteMessageAttachments($pdo, 'PUBLIC', $messageId);
+
+    $deleteStatement = $pdo->prepare(
+        'DELETE FROM ticket_messages
+         WHERE id = :message_id'
+    );
+    $deleteStatement->execute(['message_id' => $messageId]);
+
+    $pdo->commit();
+
+    ticketDeletePhysicalFiles($attachmentPaths ?? []);
 
     $_SESSION['ticket_success'] = 'Mensaje eliminado correctamente.';
-} catch (PDOException $e) {
+} catch (Throwable $exception) {
+    if ($pdo->inTransaction()) {
+        $pdo->rollBack();
+    }
+
     $_SESSION['ticket_error'] = 'Error al eliminar el mensaje.';
 }
 

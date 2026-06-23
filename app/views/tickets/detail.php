@@ -4,6 +4,8 @@ if (!function_exists('user')) {
 }
 
 require_once __DIR__ . '/../../helpers/business_hours.php';
+require_once __DIR__ . '/../../helpers/sla_helper.php';
+require_once __DIR__ . '/../../helpers/ticket_message_helper.php';
 
 $ticket = $ticket ?? null;
 $messages = $messages ?? [];
@@ -12,7 +14,8 @@ $clientTickets = $clientTickets ?? [];
 $clientInfo = $clientInfo ?? [];
 $clientStats = $clientStats ?? [];
 $feedback = $feedback ?? null;
-
+$messageAttachments = $messageAttachments ?? [];
+$internalMessageAttachments = $internalMessageAttachments ?? [];
 
 $internalMessages = $internalMessages ?? [];
 $canUseInternalConversation = $canUseInternalConversation ?? in_array((user()['role'] ?? ''), ['ADMIN', 'TECH'], true);
@@ -33,6 +36,34 @@ if (!function_exists('ticketUserInitials')) {
     }
 }
 
+
+if (!function_exists('ticketProfilePhotoUrl')) {
+    function ticketProfilePhotoUrl(?string $photoPath): ?string
+    {
+        $photoPath = trim((string)$photoPath);
+
+        if ($photoPath === '') {
+            return null;
+        }
+
+        if (preg_match('/^https?:\/\//i', $photoPath)) {
+            return $photoPath;
+        }
+
+        if (str_starts_with($photoPath, '/')) {
+            return $photoPath;
+        }
+
+        $photoPath = ltrim($photoPath, '/');
+
+        if (str_starts_with($photoPath, 'public/')) {
+            return '/helpdesk-php/' . $photoPath;
+        }
+
+        return '/helpdesk-php/public/uploads/users/' . $photoPath;
+    }
+}
+
 if (!function_exists('ticketRoleLabel')) {
     function ticketRoleLabel(?string $role): string
     {
@@ -42,6 +73,156 @@ if (!function_exists('ticketRoleLabel')) {
             'CLIENT' => 'Cliente',
             default => (string)$role,
         };
+    }
+}
+
+
+if (!function_exists('ticketMessageEditor')) {
+    function ticketMessageEditor(
+        string $editorId,
+        string $label,
+        string $placeholder,
+        bool $allowDocuments = true
+    ): void {
+        $safeId = preg_replace('/[^a-zA-Z0-9_-]/', '', $editorId) ?: 'ticketEditor';
+        ?>
+        <div class="form-group ticket-rich-editor-field" data-rich-editor="<?= htmlspecialchars($safeId) ?>">
+            <label><?= htmlspecialchars($label) ?></label>
+
+            <div class="ticket-rich-editor">
+                <div class="ticket-rich-toolbar" role="toolbar" aria-label="Formato del mensaje">
+                    <select data-rich-block title="Tipo de texto" aria-label="Tipo de texto">
+                        <option value="p">Párrafo</option>
+                        <option value="h2">Título</option>
+                        <option value="h3">Subtítulo</option>
+                        <option value="blockquote">Cita</option>
+                        <option value="pre">Código</option>
+                    </select>
+
+                    <select data-rich-size title="Tamaño de texto" aria-label="Tamaño de texto">
+                        <option value="14px">14 px</option>
+                        <option value="12px">12 px</option>
+                        <option value="16px">16 px</option>
+                        <option value="18px">18 px</option>
+                        <option value="20px">20 px</option>
+                        <option value="24px">24 px</option>
+                        <option value="28px">28 px</option>
+                        <option value="32px">32 px</option>
+                    </select>
+
+                    <span class="ticket-toolbar-divider"></span>
+
+                    <button type="button" data-rich-command="bold" title="Negrita"><strong>B</strong></button>
+                    <button type="button" data-rich-command="italic" title="Cursiva"><em>I</em></button>
+                    <button type="button" data-rich-command="underline" title="Subrayado"><u>U</u></button>
+                    <button type="button" data-rich-command="strikeThrough" title="Tachado"><s>S</s></button>
+
+                    <label class="ticket-color-tool" title="Color de texto">
+                        <span>A</span>
+                        <input type="color" value="#172033" data-rich-color>
+                    </label>
+
+                    <label class="ticket-color-tool highlight" title="Color de resaltado">
+                        <span>▰</span>
+                        <input type="color" value="#fff2b2" data-rich-highlight>
+                    </label>
+
+                    <span class="ticket-toolbar-divider"></span>
+
+                    <button type="button" data-rich-command="insertUnorderedList" title="Viñetas">• Lista</button>
+                    <button type="button" data-rich-command="insertOrderedList" title="Numeración">1. Lista</button>
+                    <button type="button" data-rich-command="justifyLeft" title="Alinear a la izquierda">←</button>
+                    <button type="button" data-rich-command="justifyCenter" title="Centrar">↔</button>
+                    <button type="button" data-rich-command="justifyRight" title="Alinear a la derecha">→</button>
+                    <button type="button" data-rich-command="justifyFull" title="Justificar">☰</button>
+
+                    <button type="button" data-rich-action="link" title="Insertar enlace">🔗</button>
+
+                    <?php if ($allowDocuments): ?>
+                        <button type="button" data-rich-action="image" title="Insertar imagen dentro del mensaje">🖼</button>
+                    <?php endif; ?>
+
+                    <span class="ticket-toolbar-divider"></span>
+
+                    <button type="button" data-rich-command="undo" title="Deshacer">↶</button>
+                    <button type="button" data-rich-command="redo" title="Rehacer">↷</button>
+                    <button type="button" data-rich-command="removeFormat" title="Limpiar formato">Tx</button>
+                </div>
+
+                <div
+                    id="<?= htmlspecialchars($safeId) ?>Editor"
+                    class="ticket-rich-editor-area"
+                    contenteditable="true"
+                    data-placeholder="<?= htmlspecialchars($placeholder, ENT_QUOTES, 'UTF-8') ?>"
+                    spellcheck="true"
+                    oninput="this.closest('[data-rich-editor]').querySelector('[data-rich-input]').value = this.innerHTML;"
+                    onblur="this.closest('[data-rich-editor]').querySelector('[data-rich-input]').value = this.innerHTML;"></div>
+
+                <input
+                    type="hidden"
+                    name="message"
+                    id="<?= htmlspecialchars($safeId) ?>Input"
+                    data-rich-input>
+
+                <?php if ($allowDocuments): ?>
+                    <input
+                        type="file"
+                        name="inline_images[]"
+                        id="<?= htmlspecialchars($safeId) ?>Images"
+                        data-rich-images
+                        accept="image/jpeg,image/png,image/webp,image/gif"
+                        multiple
+                        hidden>
+                <?php endif; ?>
+            </div>
+
+            <div class="ticket-rich-editor-help">
+                Enter crea un párrafo normal. Las viñetas o la numeración solo aparecen cuando las activas.
+            </div>
+
+            <?php if ($allowDocuments): ?>
+                <div class="ticket-document-upload">
+                    <button type="button" class="ticket-document-button" data-document-trigger>
+                        <span>＋</span>
+                        Adjuntar documentos
+                    </button>
+
+                    <input
+                        type="file"
+                        name="attachments[]"
+                        id="<?= htmlspecialchars($safeId) ?>Documents"
+                        data-rich-documents
+                        accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.zip"
+                        multiple
+                        hidden>
+
+                    <span>PDF, Word, Excel, PowerPoint, TXT, CSV o ZIP. Máximo 8 archivos de 15 MB.</span>
+                </div>
+
+                <div class="ticket-document-list" data-document-list></div>
+            <?php endif; ?>
+        </div>
+        <?php
+    }
+}
+
+if (!function_exists('ticketMessageAvatarMarkup')) {
+    function ticketMessageAvatarMarkup(array $message, bool $internal = false): string
+    {
+        $name = (string)($message['name'] ?? 'Usuario');
+        $photo = ticketProfilePhotoUrl($message['profile_photo'] ?? null);
+        $classes = 'ticket-message-avatar' . ($internal ? ' internal-avatar' : '');
+
+        if ($photo) {
+            return '<div class="' . $classes . ' has-photo">'
+                . '<img src="' . htmlspecialchars($photo, ENT_QUOTES, 'UTF-8') . '" alt="Foto de '
+                . htmlspecialchars($name, ENT_QUOTES, 'UTF-8') . '">'
+                . '</div>';
+        }
+
+        return '<div class="' . $classes . '">'
+            . htmlspecialchars(ticketUserInitials($name), ENT_QUOTES, 'UTF-8')
+            . '</div>';
     }
 }
 
@@ -56,132 +237,19 @@ if (empty($ticket) || empty($ticket['id'])) {
 |--------------------------------------------------------------------------
 | Cronómetro SLA del detalle
 |--------------------------------------------------------------------------
-| Calcula el avance del SLA con base en horas laborales. En tickets abiertos
-| usa la fecha actual; en tickets cerrados usa la fecha de cierre/actualización.
+| Usa el contrato 24/7 o 8/5 de la empresa del ticket.
 */
-if (!function_exists('detailIsBusinessTimeNow')) {
-    function detailIsBusinessTimeNow(): bool
-    {
-        try {
-            $now = new DateTime();
-        } catch (Exception $e) {
-            return false;
-        }
+$slaTimer = $slaTimer ?? getSlaTimerData($ticket);
 
-        $dayOfWeek = (int)$now->format('N'); // 1 lunes, 7 domingo
-
-        if ($dayOfWeek > 6) {
-            return false;
-        }
-
-        $currentMinutes = ((int)$now->format('H') * 60) + (int)$now->format('i');
-        $startMinutes = 8 * 60;          // 08:00
-        $endMinutes = (17 * 60) + 50;    // 17:50
-
-        return $currentMinutes >= $startMinutes && $currentMinutes <= $endMinutes;
-    }
-}
-
-if (!function_exists('detailFormatClockFromHours')) {
-    function detailFormatClockFromHours(float|int|string|null $hours): string
-    {
-        if ($hours === null || $hours === '' || !is_numeric($hours)) {
-            return '00:00:00';
-        }
-
-        $totalSeconds = max(0, (int)round(((float)$hours) * 3600));
-        $h = intdiv($totalSeconds, 3600);
-        $m = intdiv($totalSeconds % 3600, 60);
-        $s = $totalSeconds % 60;
-
-        return sprintf('%02d:%02d:%02d', $h, $m, $s);
-    }
-}
-
-if (!function_exists('detailBuildSlaTimerData')) {
-    function detailBuildSlaTimerData(array $ticket): array
-    {
-        $slaHours = (float)($ticket['sla_hours'] ?? 0);
-        $createdAt = $ticket['created_at'] ?? null;
-        $status = $ticket['status'] ?? '';
-        $isClosed = $status === 'CERRADO';
-        $isPaused = !$isClosed && !detailIsBusinessTimeNow();
-        $endAt = date('Y-m-d H:i:s');
-
-        if ($isClosed) {
-            $endAt = $ticket['closed_at'] ?? $ticket['updated_at'] ?? $endAt;
-        }
-
-        $elapsedHours = 0.0;
-
-        if (!empty($createdAt) && $slaHours > 0 && function_exists('calculateBusinessHours')) {
-            $elapsedHours = (float)calculateBusinessHours($createdAt, $endAt);
-        }
-
-        $remainingHours = max(0, $slaHours - $elapsedHours);
-        $progressPercent = $slaHours > 0 ? min(100, max(0, ($elapsedHours / $slaHours) * 100)) : 0;
-
-        $phaseClass = 'sla-phase-green';
-        $phaseLabel = 'Dentro del tiempo';
-        $tooltip = 'El SLA se está contabilizando dentro del horario laboral.';
-
-        if ($progressPercent >= 100) {
-            $phaseClass = 'sla-phase-red';
-            $phaseLabel = 'SLA vencido';
-            $tooltip = 'El tiempo objetivo del SLA fue consumido.';
-        } elseif ($progressPercent >= 85) {
-            $phaseClass = 'sla-phase-red';
-            $phaseLabel = 'Próximo a vencer';
-            $tooltip = 'El SLA está cerca de llegar a su límite.';
-        } elseif ($progressPercent >= 50) {
-            $phaseClass = 'sla-phase-yellow';
-            $phaseLabel = 'En seguimiento';
-            $tooltip = 'El ticket ya consumió más de la mitad del SLA.';
-        }
-
-        if ($isPaused) {
-            $phaseClass = 'sla-phase-paused';
-            $phaseLabel = 'Tiempo pausado';
-            $tooltip = 'Tiempo pausado por tiempo no laboral';
-        }
-
-        if ($isClosed) {
-            if (($ticket['sla_met'] ?? null) !== null && (int)$ticket['sla_met'] === 1) {
-                $phaseClass = 'sla-phase-green';
-                $phaseLabel = 'SLA cumplido';
-                $tooltip = 'El ticket fue cerrado dentro del tiempo objetivo.';
-            } elseif (($ticket['sla_met'] ?? null) !== null && (int)$ticket['sla_met'] === 0) {
-                $phaseClass = 'sla-phase-red';
-                $phaseLabel = 'SLA no cumplido';
-                $tooltip = 'El ticket fue cerrado fuera del tiempo objetivo.';
-            } else {
-                $phaseClass = $progressPercent >= 100 ? 'sla-phase-red' : 'sla-phase-green';
-                $phaseLabel = 'Ticket cerrado';
-                $tooltip = 'El ticket ya fue finalizado.';
-            }
-        }
-
-        if ($slaHours <= 0 || empty($createdAt)) {
-            $phaseClass = 'sla-phase-paused';
-            $phaseLabel = 'SLA no definido';
-            $tooltip = 'Este ticket no tiene un SLA objetivo válido.';
-        }
-
-        return [
-            'sla_hours' => $slaHours,
-            'elapsed_hours' => $elapsedHours,
-            'remaining_hours' => $remainingHours,
-            'progress_percent' => $progressPercent,
-            'phase_class' => $phaseClass,
-            'phase_label' => $phaseLabel,
-            'tooltip' => $tooltip,
-            'is_paused' => $isPaused,
-            'is_closed' => $isClosed,
-        ];
-    }
-}
-
-$slaTimer = detailBuildSlaTimerData($ticket);
+$slaStatusDisplayLabel = (string)($slaTimer['status_label'] ?? 'Pendiente');
+$slaStatusDisplayClass = match (true) {
+    str_contains(mb_strtolower($slaStatusDisplayLabel, 'UTF-8'), 'fuera'),
+    str_contains(mb_strtolower($slaStatusDisplayLabel, 'UTF-8'), 'vencido'),
+    str_contains(mb_strtolower($slaStatusDisplayLabel, 'UTF-8'), 'no cumplido') => 'danger',
+    str_contains(mb_strtolower($slaStatusDisplayLabel, 'UTF-8'), 'cumplido'),
+    $slaStatusDisplayLabel === 'Dentro del SLA' => 'success',
+    default => 'pending',
+};
 
 $title = 'Detalle del Ticket';
 
@@ -216,149 +284,6 @@ $adminTopbarButtons = [
 require_once __DIR__ . '/../layouts/header.php';
 ?>
 
-<style>
-/* Cronómetro SLA compacto del detalle */
-.sla-timer-card {
-    margin-bottom: 16px;
-    padding: 16px;
-    border: 1px solid #e7edf4;
-    border-radius: 18px;
-    background: #ffffff;
-    box-shadow: 0 10px 26px rgba(15, 61, 46, 0.05);
-}
-
-.sla-timer-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 10px;
-    margin-bottom: 14px;
-}
-
-.sla-timer-header h3 {
-    margin: 0;
-    color: #0f172a;
-    font-size: 18px;
-    line-height: 1.2;
-}
-
-.sla-timer-badge {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    padding: 6px 10px;
-    border-radius: 999px;
-    border: 1px solid transparent;
-    font-size: 11px;
-    font-weight: 800;
-    white-space: nowrap;
-}
-
-.sla-timer-bar {
-    width: 100%;
-    height: 10px;
-    overflow: hidden;
-    border-radius: 999px;
-    background: #edf2f7;
-}
-
-.sla-timer-bar-fill {
-    height: 100%;
-    width: 0;
-    border-radius: 999px;
-    transition: width 0.35s ease, background 0.35s ease;
-}
-
-.sla-timer-percent {
-    margin-top: 7px;
-    text-align: right;
-    color: #64748b;
-    font-size: 12px;
-    font-weight: 800;
-}
-
-.sla-timer-times {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 10px;
-    margin-top: 14px;
-}
-
-.sla-time-box {
-    padding: 11px 12px;
-    border: 1px solid #e7edf4;
-    border-radius: 14px;
-    background: #f8fafc;
-}
-
-.sla-time-box span {
-    display: block;
-    margin-bottom: 5px;
-    color: #64748b;
-    font-size: 11px;
-    font-weight: 700;
-}
-
-.sla-time-box strong {
-    display: block;
-    color: #0f172a;
-    font-size: 16px;
-    letter-spacing: -0.2px;
-}
-
-.sla-timer-note {
-    margin: 12px 0 0;
-    color: #475569;
-    font-size: 12px;
-    line-height: 1.45;
-}
-
-.sla-phase-green {
-    background: #dcfce7;
-    color: #166534;
-    border-color: #86efac;
-}
-
-.sla-phase-yellow {
-    background: #fef3c7;
-    color: #92400e;
-    border-color: #fcd34d;
-}
-
-.sla-phase-red {
-    background: #fee2e2;
-    color: #b91c1c;
-    border-color: #fca5a5;
-}
-
-.sla-phase-paused {
-    background: #e5e7eb;
-    color: #4b5563;
-    border-color: #d1d5db;
-}
-
-.sla-timer-bar-fill.sla-phase-green {
-    background: linear-gradient(90deg, #22c55e, #16a34a);
-}
-
-.sla-timer-bar-fill.sla-phase-yellow {
-    background: linear-gradient(90deg, #f59e0b, #d97706);
-}
-
-.sla-timer-bar-fill.sla-phase-red {
-    background: linear-gradient(90deg, #ef4444, #dc2626);
-}
-
-.sla-timer-bar-fill.sla-phase-paused {
-    background: linear-gradient(90deg, #9ca3af, #6b7280);
-}
-
-@media (max-width: 900px) {
-    .sla-timer-times {
-        grid-template-columns: 1fr;
-    }
-}
-</style>
 
 
 <?php if ($isAdminView): ?>
@@ -406,104 +331,125 @@ require_once __DIR__ . '/../layouts/header.php';
                                 </div>
                             </div>
 
-                            <!-- GRID DE DATOS -->
-                            <div class="ticket-info-grid">
+                            <!-- RESUMEN OPERATIVO COMPACTO -->
+                            <?php
+                            $ttaDetailHours = getTicketTtaHours($ticket);
+                            $ttaDetailLabel = $ttaDetailHours === null
+                                ? 'Pendiente'
+                                : formatSlaDuration($ttaDetailHours);
+                            $ttaDetailClass = $ttaDetailHours === null ? 'pending' : 'success';
 
-                                <div class="ticket-info-item">
-                                    <span class="label">Asignado a</span>
+                            $ttrDetailHours = getTicketTtrHours($ticket);
+                            $ttrDetailLabel = $ttrDetailHours === null
+                                ? 'Pendiente'
+                                : formatSlaDuration($ttrDetailHours);
+                            $ttrDetailClass = $ttrDetailHours === null ? 'pending' : 'success';
+
+                            $assignedLevelLabel = !empty($ticket['assigned_level'])
+                                ? 'Nivel ' . (int)$ticket['assigned_level']
+                                : 'Sin nivel asignado';
+
+                            $companyLabel = $ticket['company_business_name']
+                                ?? $ticket['requester_company_legacy']
+                                ?? 'Sin empresa';
+                            ?>
+
+                            <div class="ticket-summary-grid">
+                                <div class="ticket-summary-item ticket-summary-highlight">
+                                    <span class="ticket-summary-label">Asignación</span>
                                     <strong><?= !empty($ticket['assigned_name']) ? htmlspecialchars($ticket['assigned_name']) : 'Sin asignar' ?></strong>
+                                    <small><?= htmlspecialchars($assignedLevelLabel) ?></small>
                                 </div>
 
-                                <div class="ticket-info-item">
-                                    <span class="label">Categoría</span>
+                                <div class="ticket-summary-item ticket-summary-highlight">
+                                    <span class="ticket-summary-label">Empresa y contrato</span>
+                                    <strong><?= htmlspecialchars($companyLabel) ?></strong>
+                                    <small><?= htmlspecialchars($slaTimer['contract_label'] ?? 'Contrato 8/5') ?></small>
+                                </div>
+
+                                <div class="ticket-summary-item">
+                                    <span class="ticket-summary-label">Categoría</span>
                                     <strong><?= htmlspecialchars($ticket['category'] ?? 'No definida') ?></strong>
+                                    <small>Clasificación de la incidencia</small>
                                 </div>
 
-                                <div class="ticket-info-item">
-                                    <span class="label">Fecha de creación</span>
+                                <div class="ticket-summary-item">
+                                    <span class="ticket-summary-label">Creación</span>
                                     <strong><?= !empty($ticket['created_at']) ? date('d/m/Y H:i', strtotime($ticket['created_at'])) : 'No disponible' ?></strong>
+                                    <small>Registro inicial del ticket</small>
                                 </div>
 
-                                <div class="ticket-info-item">
-                                    <span class="label">Última actualización</span>
+                                <div class="ticket-summary-item">
+                                    <span class="ticket-summary-label">Primera atención</span>
+                                    <strong class="<?= empty($ticket['first_response_at']) ? 'pending' : 'success' ?>">
+                                        <?= !empty($ticket['first_response_at'])
+                                            ? date('d/m/Y H:i', strtotime($ticket['first_response_at']))
+                                            : 'Pendiente' ?>
+                                    </strong>
+                                    <small>Primera respuesta técnica</small>
+                                </div>
+
+                                <div class="ticket-summary-item">
+                                    <span class="ticket-summary-label">Última actualización</span>
                                     <strong><?= !empty($ticket['updated_at']) ? date('d/m/Y H:i', strtotime($ticket['updated_at'])) : 'No disponible' ?></strong>
+                                    <small><?= htmlspecialchars($lastActivity['actor_name'] ?? $lastActivity['actor_role'] ?? 'Sistema') ?></small>
                                 </div>
 
-                                <div class="ticket-info-item">
-                                    <span class="label">Cerrado por cliente</span>
-                                    <strong><?= ((int)($ticket['client_closed'] ?? 0) === 1) ? 'Sí' : 'No' ?></strong>
+                                <div class="ticket-summary-item">
+                                    <span class="ticket-summary-label">TTA</span>
+                                    <strong class="<?= $ttaDetailClass ?>"><?= htmlspecialchars($ttaDetailLabel) ?></strong>
+                                    <small>Tiempo de primera atención</small>
                                 </div>
 
-                                <!-- INDICADORES ATERRIZADOS -->
-                                <div class="ticket-info-item">
-                                    <span class="label">SLA objetivo</span>
-                                    <strong><?= (int)($ticket['sla_hours'] ?? 0) ?> horas</strong>
-                                </div>
-
-                                <div class="ticket-info-item">
-                                    <span class="label">Tiempo de respuesta (TTA)</span>
-                                    <?php
-                                    $firstResponseAt = $ticket['level_first_response_at']
-                                        ?? $ticket['first_response_at']
-                                        ?? null;
-
-                                    $ttaDetailLabel = formatBusinessTimeStatus(
-                                        $ticket['created_at'] ?? null,
-                                        $firstResponseAt,
-                                        empty($firstResponseAt)
-                                    );
-
-                                    $ttaDetailClass = match ($ttaDetailLabel) {
-                                        'Pendiente', 'Fuera de horario' => 'pending',
-                                        default => 'success',
-                                    };
-                                    ?>
-                                    <strong class="<?= $ttaDetailClass ?>">
-                                        <?= htmlspecialchars($ttaDetailLabel) ?>
-                                    </strong>
-                                </div>
-
-                                <div class="ticket-info-item">
-                                    <span class="label">Tiempo de resolución (TTR)</span>
-                                    <?php
-                                    $closedAt = $ticket['closed_at'] ?? null;
-
-                                    if (empty($closedAt) && ($ticket['status'] ?? '') === 'CERRADO') {
-                                        $closedAt = $ticket['updated_at'] ?? null;
-                                    }
-
-                                    $ttrDetailLabel = formatBusinessTimeStatus(
-                                        $ticket['created_at'] ?? null,
-                                        $closedAt,
-                                        ($ticket['status'] ?? '') !== 'CERRADO'
-                                    );
-
-                                    $ttrDetailClass = match ($ttrDetailLabel) {
-                                        'Pendiente', 'Fuera de horario' => 'pending',
-                                        default => 'success',
-                                    };
-                                    ?>
-                                    <strong class="<?= $ttrDetailClass ?>">
-                                        <?= htmlspecialchars($ttrDetailLabel) ?>
-                                    </strong>
-                                </div>
-
-                                <div class="ticket-info-item">
-                                    <span class="label">Cumplimiento SLA</span>
-                                    <strong class="<?=
-                                        ($ticket['sla_met'] ?? null) === null ? 'pending' :
-                                        ((int)$ticket['sla_met'] === 1 ? 'success' : 'danger')
-                                    ?>">
-                                        <?php if (($ticket['sla_met'] ?? null) === null): ?>
-                                            Pendiente
-                                        <?php elseif ((int)$ticket['sla_met'] === 1): ?>
-                                            Cumplido
-                                        <?php else: ?>
-                                            No cumplido
-                                        <?php endif; ?>
-                                    </strong>
+                                <div class="ticket-summary-item">
+                                    <span class="ticket-summary-label">TTR</span>
+                                    <strong class="<?= $ttrDetailClass ?>"><?= htmlspecialchars($ttrDetailLabel) ?></strong>
+                                    <small>Tiempo total de resolución</small>
                                 </div>
                             </div>
+
+                            <details class="ticket-extra-details">
+                                <summary>
+                                    <span>
+                                        <strong>Más información operativa</strong>
+                                        <small>Cierre, SLA y trazabilidad adicional</small>
+                                    </span>
+                                    <i class="fa-solid fa-chevron-down" aria-hidden="true"></i>
+                                </summary>
+
+                                <div class="ticket-extra-grid">
+                                    <div>
+                                        <span>Última acción por</span>
+                                        <strong><?= htmlspecialchars($lastActivity['actor_name'] ?? $lastActivity['actor_role'] ?? 'Sistema') ?></strong>
+                                    </div>
+
+                                    <div>
+                                        <span>Fecha de cierre</span>
+                                        <strong>
+                                            <?= !empty($ticket['closed_at'])
+                                                ? date('d/m/Y H:i', strtotime($ticket['closed_at']))
+                                                : 'Ticket abierto' ?>
+                                        </strong>
+                                    </div>
+
+                                    <div>
+                                        <span>Cerrado por cliente</span>
+                                        <strong><?= ((int)($ticket['client_closed'] ?? 0) === 1) ? 'Sí' : 'No' ?></strong>
+                                    </div>
+
+                                    <div>
+                                        <span>SLA objetivo</span>
+                                        <strong><?= htmlspecialchars(formatSlaDuration($ticket['sla_hours'] ?? 0)) ?></strong>
+                                    </div>
+
+                                    <div>
+                                        <span>Cumplimiento SLA</span>
+                                        <strong class="<?= htmlspecialchars($slaStatusDisplayClass) ?>">
+                                            <?= htmlspecialchars($slaStatusDisplayLabel) ?>
+                                        </strong>
+                                    </div>
+                                </div>
+                            </details>
 
                             <!-- FEEDBACK DEL CLIENTE -->
                             <?php if (!empty($feedback)): ?>
@@ -564,9 +510,7 @@ require_once __DIR__ . '/../layouts/header.php';
                                             <div class="ticket-message-item">
                                                 <div class="ticket-message-top">
                                                     <div class="ticket-message-author">
-                                                        <div class="ticket-message-avatar">
-                                                            <?= htmlspecialchars(ticketUserInitials($message['name'] ?? 'Usuario')) ?>
-                                                        </div>
+                                                        <?= ticketMessageAvatarMarkup($message) ?>
                                                         <div class="ticket-message-author-info">
                                                             <strong><?= htmlspecialchars($message['name']) ?></strong>
                                                             <span class="message-role"><?= htmlspecialchars(ticketRoleLabel($message['role'] ?? '')) ?></span>
@@ -576,6 +520,9 @@ require_once __DIR__ . '/../layouts/header.php';
                                                     <div class="message-right">
                                                         <span class="message-date">
                                                             <?= !empty($message['created_at']) ? date('d/m/Y H:i', strtotime($message['created_at'])) : '' ?>
+                                                            <?php if (!empty($message['updated_at'])): ?>
+                                                                <small class="message-edited">Editado</small>
+                                                            <?php endif; ?>
                                                         </span>
 
                                                         <?php if (($ticket['status'] ?? '') !== 'CERRADO'): ?>
@@ -585,7 +532,8 @@ require_once __DIR__ . '/../layouts/header.php';
                                                                     class="message-edit-btn"
                                                                     title="Editar mensaje"
                                                                     data-message-id="<?= (int)$message['id'] ?>"
-                                                                    data-message-text="<?= htmlspecialchars($message['message'] ?? '', ENT_QUOTES, 'UTF-8') ?>"
+                                                                    data-message-content="<?= htmlspecialchars(base64_encode((string)($message['message'] ?? '')), ENT_QUOTES, 'UTF-8') ?>"
+                                                                    data-message-format="<?= htmlspecialchars($message['message_format'] ?? 'plain') ?>"
                                                                     onclick="openEditMessageModalFromButton(this)"
                                                                 >
                                                                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 24 24">
@@ -608,9 +556,16 @@ require_once __DIR__ . '/../layouts/header.php';
                                                     </div>
                                                 </div>
 
-                                                <div class="ticket-message-body">
-                                                    <?= nl2br(htmlspecialchars($message['message'])) ?>
+                                                <div class="ticket-message-body ticket-rich-message">
+                                                    <?= ticketRenderStoredMessage(
+                                                        $message['message'] ?? '',
+                                                        $message['message_format'] ?? 'plain'
+                                                    ) ?>
                                                 </div>
+
+                                                <?= ticketRenderAttachmentList(
+                                                    $messageAttachments[(int)$message['id']] ?? []
+                                                ) ?>
                                             </div>
                                         <?php endforeach; ?>
                                     </div>
@@ -705,9 +660,7 @@ require_once __DIR__ . '/../layouts/header.php';
                                                 <div class="ticket-message-item internal-message-item">
                                                     <div class="ticket-message-top">
                                                         <div class="ticket-message-author">
-                                                            <div class="ticket-message-avatar internal-avatar">
-                                                                <?= htmlspecialchars(ticketUserInitials($internalMessage['name'] ?? 'Usuario')) ?>
-                                                            </div>
+                                                            <?= ticketMessageAvatarMarkup($internalMessage, true) ?>
                                                             <div class="ticket-message-author-info">
                                                                 <strong><?= htmlspecialchars($internalMessage['name'] ?? 'Usuario') ?></strong>
                                                                 <span class="message-role internal-role"><?= htmlspecialchars(ticketRoleLabel($internalMessage['role'] ?? '')) ?></span>
@@ -721,9 +674,16 @@ require_once __DIR__ . '/../layouts/header.php';
                                                         </div>
                                                     </div>
 
-                                                    <div class="ticket-message-body">
-                                                        <?= nl2br(htmlspecialchars($internalMessage['message'])) ?>
+                                                    <div class="ticket-message-body ticket-rich-message">
+                                                        <?= ticketRenderStoredMessage(
+                                                            $internalMessage['message'] ?? '',
+                                                            $internalMessage['message_format'] ?? 'plain'
+                                                        ) ?>
                                                     </div>
+
+                                                    <?= ticketRenderAttachmentList(
+                                                        $internalMessageAttachments[(int)$internalMessage['id']] ?? []
+                                                    ) ?>
                                                 </div>
                                             <?php endforeach; ?>
                                         </div>
@@ -735,22 +695,24 @@ require_once __DIR__ . '/../layouts/header.php';
                                     <?php endif; ?>
 
                                     <?php if (($ticket['status'] ?? '') !== 'CERRADO'): ?>
-                                        <form action="/helpdesk-php/save-internal-message.php" method="POST" class="ticket-form internal-message-form">
+                                        <form
+                                            action="/helpdesk-php/save-internal-message.php"
+                                            method="POST"
+                                            enctype="multipart/form-data"
+                                            class="ticket-form internal-message-form ticket-rich-message-form">
                                             <input type="hidden" name="ticket_id" value="<?= (int)$ticket['id'] ?>">
 
-                                            <div class="form-group">
-                                                <label for="internal_message_admin">Mensaje interno</label>
-                                                <textarea
-                                                    id="internal_message_admin"
-                                                    name="message"
-                                                    rows="4"
-                                                    placeholder="Escribe una nota interna para el equipo técnico..."
-                                                    required
-                                                ></textarea>
-                                            </div>
+                                            <?php ticketMessageEditor(
+                                                'adminInternalReply',
+                                                'Mensaje interno',
+                                                'Escribe una nota privada para el equipo técnico.'
+                                            ); ?>
 
                                             <div class="ticket-form-actions">
-                                                <button type="submit" class="btn-primary">Enviar mensaje interno</button>
+                                                <button type="submit" class="btn-primary">
+                                                    <i class="fa-solid fa-lock"></i>
+                                                    Enviar mensaje interno
+                                                </button>
                                             </div>
                                         </form>
                                     <?php else: ?>
@@ -782,23 +744,25 @@ require_once __DIR__ . '/../layouts/header.php';
                                     <?php unset($_SESSION['ticket_success']); ?>
                                 <?php endif; ?>
 
-                                <form action="/helpdesk-php/reply-ticket.php" method="POST" class="ticket-form">
+                                <form
+                                    action="/helpdesk-php/reply-ticket.php"
+                                    method="POST"
+                                    enctype="multipart/form-data"
+                                    class="ticket-form ticket-rich-message-form">
                                     <input type="hidden" name="ticket_id" value="<?= (int)$ticket['id'] ?>">
 
-                                    <div class="form-group">
-                                        <label for="message">Mensaje</label>
-                                        <textarea
-                                            id="message"
-                                            name="message"
-                                            rows="6"
-                                            placeholder="Escribe tu respuesta aquí..."
-                                            required
-                                        ></textarea>
-                                    </div>
+                                    <?php ticketMessageEditor(
+                                        'adminPublicReply',
+                                        'Mensaje',
+                                        'Escribe una respuesta clara. Puedes insertar imágenes dentro del contenido.'
+                                    ); ?>
 
                                     <div class="ticket-form-actions">
                                         <a href="/helpdesk-php/admin-tickets.php" class="btn-secondary">Atrás</a>
-                                        <button type="submit" class="btn-primary">Enviar respuesta</button>
+                                        <button type="submit" class="btn-primary">
+                                            <i class="fa-solid fa-paper-plane"></i>
+                                            Enviar respuesta
+                                        </button>
                                     </div>
                                 </form>
                             </section>
@@ -811,51 +775,104 @@ require_once __DIR__ . '/../layouts/header.php';
                 <aside class="ticket-client-sidebar">
 
                     <div
-                        class="card sla-timer-card"
-                        id="slaTimerCard"
+                        class="card sla-timer-card sla-timer-card-enhanced"
+                        data-sla-timer="1"
+                        data-timezone-offset="<?= (int)(new DateTimeImmutable('now', new DateTimeZone('America/Lima')))->getOffset() ?>"
                         data-sla-seconds="<?= (int)round(($slaTimer['sla_hours'] ?? 0) * 3600) ?>"
                         data-elapsed-seconds="<?= (int)round(($slaTimer['elapsed_hours'] ?? 0) * 3600) ?>"
                         data-is-closed="<?= !empty($slaTimer['is_closed']) ? '1' : '0' ?>"
+                        data-contract="<?= htmlspecialchars($slaTimer['contract_type'] ?? '8_5') ?>"
+                        data-is-running="<?= !empty($slaTimer['is_running']) ? '1' : '0' ?>"
                         title="<?= htmlspecialchars($slaTimer['tooltip'] ?? '') ?>"
                     >
                         <div class="sla-timer-header">
-                            <h3>Cronómetro SLA</h3>
-                            <span class="sla-timer-badge <?= htmlspecialchars($slaTimer['phase_class'] ?? 'sla-phase-paused') ?>" id="slaTimerBadge">
-                                <?= htmlspecialchars($slaTimer['phase_label'] ?? 'Tiempo pausado') ?>
+                            <div>
+                                <span class="sla-timer-eyebrow">Control de tiempo</span>
+                                <h3>Cronómetro SLA</h3>
+                            </div>
+
+                            <span
+                                class="sla-timer-badge <?= htmlspecialchars($slaTimer['phase_class'] ?? 'sla-phase-paused') ?>"
+                                data-sla-badge>
+                                <?= htmlspecialchars($slaTimer['phase_label'] ?? 'SLA no definido') ?>
                             </span>
                         </div>
 
-                        <div class="sla-timer-bar">
-                            <div
-                                class="sla-timer-bar-fill <?= htmlspecialchars($slaTimer['phase_class'] ?? 'sla-phase-paused') ?>"
-                                id="slaTimerBarFill"
-                                style="width: <?= number_format((float)($slaTimer['progress_percent'] ?? 0), 2, '.', '') ?>%;"
-                            ></div>
+                        <div class="sla-contract-row">
+                            <span>
+                                <i class="fa-regular fa-clock"></i>
+                                <?= htmlspecialchars($slaTimer['contract_label'] ?? 'Contrato 8/5') ?>
+                            </span>
+
+                            <strong>
+                                Objetivo:
+                                <?= htmlspecialchars(formatSlaDuration($slaTimer['sla_hours'] ?? 0)) ?>
+                            </strong>
                         </div>
 
-                        <div class="sla-timer-percent" id="slaTimerPercent">
-                            <?= number_format((float)($slaTimer['progress_percent'] ?? 0), 1) ?>%
+                        <div class="sla-timer-progress">
+                            <div class="sla-timer-bar">
+                                <div
+                                    class="sla-timer-bar-fill <?= htmlspecialchars($slaTimer['phase_class'] ?? 'sla-phase-paused') ?>"
+                                    data-sla-bar
+                                    style="width: <?= number_format((float)($slaTimer['progress_percent'] ?? 0), 2, '.', '') ?>%;"
+                                ></div>
+                            </div>
+
+                            <div class="sla-timer-percent" data-sla-percent>
+                                <?= number_format((float)($slaTimer['progress_raw_percent'] ?? 0), 1) ?>%
+                            </div>
                         </div>
 
-                        <div class="sla-timer-times">
+                        <div class="sla-timer-times sla-timer-times-compact">
                             <div class="sla-time-box">
-                                <span>Tiempo consumido</span>
-                                <strong id="slaTimerElapsed"><?= htmlspecialchars(detailFormatClockFromHours($slaTimer['elapsed_hours'] ?? 0)) ?></strong>
+                                <span>Consumido</span>
+                                <strong data-sla-elapsed>
+                                    <?= htmlspecialchars(formatDecimalHoursToClock($slaTimer['elapsed_hours'] ?? 0)) ?>
+                                </strong>
                             </div>
 
                             <div class="sla-time-box">
-                                <span>Tiempo restante</span>
-                                <strong id="slaTimerRemaining"><?= htmlspecialchars(detailFormatClockFromHours($slaTimer['remaining_hours'] ?? 0)) ?></strong>
+                                <span data-sla-remaining-label>
+                                    <?= ($slaTimer['remaining_signed_hours'] ?? 0) < 0
+                                        ? 'Tiempo excedido'
+                                        : 'Tiempo restante' ?>
+                                </span>
+
+                                <strong data-sla-remaining>
+                                    <?= htmlspecialchars(
+                                        formatDecimalHoursToClock(
+                                            ($slaTimer['remaining_signed_hours'] ?? 0) < 0
+                                                ? $slaTimer['overtime_hours']
+                                                : $slaTimer['remaining_hours']
+                                        )
+                                    ) ?>
+                                </strong>
                             </div>
                         </div>
 
-                        <p class="sla-timer-note" id="slaTimerNote">
-                            <?= !empty($slaTimer['is_closed'])
-                                ? 'El ticket está cerrado, por lo que el conteo del SLA ya finalizó.'
-                                : (!empty($slaTimer['is_paused'])
-                                    ? 'El conteo del SLA está pausado porque ahora no es horario laboral.'
-                                    : 'El SLA se está contabilizando dentro del horario laboral.')
-                            ?>
+                        <div class="sla-timer-milestones">
+                            <div>
+                                <span>Inicio</span>
+                                <strong>
+                                    <?= !empty($slaTimer['started_at'])
+                                        ? date('d/m/Y H:i', strtotime($slaTimer['started_at']))
+                                        : 'No disponible' ?>
+                                </strong>
+                            </div>
+
+                            <div>
+                                <span>Vencimiento estimado</span>
+                                <strong>
+                                    <?= !empty($slaTimer['deadline'])
+                                        ? date('d/m/Y H:i', strtotime($slaTimer['deadline']))
+                                        : 'No disponible' ?>
+                                </strong>
+                            </div>
+                        </div>
+
+                        <p class="sla-timer-note <?= !empty($slaTimer['is_paused']) ? 'paused' : '' ?>" data-sla-note>
+                            <?= htmlspecialchars($slaTimer['note'] ?? 'Sin información de SLA.') ?>
                         </p>
                     </div>
 
@@ -867,8 +884,14 @@ require_once __DIR__ . '/../layouts/header.php';
 
                         <?php if (!empty($clientInfo)): ?>
                             <div class="ticket-client-profile">
-                                <div class="ticket-client-avatar">
-                                    <?= strtoupper(substr($clientInfo['name'] ?? 'C', 0, 1)) ?>
+                                <div class="ticket-client-avatar <?= !empty(ticketProfilePhotoUrl($clientInfo['profile_photo'] ?? null)) ? 'has-photo' : '' ?>">
+                                    <?php if ($clientPhotoUrl = ticketProfilePhotoUrl($clientInfo['profile_photo'] ?? null)): ?>
+                                        <img
+                                            src="<?= htmlspecialchars($clientPhotoUrl, ENT_QUOTES, 'UTF-8') ?>"
+                                            alt="Foto de <?= htmlspecialchars($clientInfo['name'] ?? 'Cliente', ENT_QUOTES, 'UTF-8') ?>">
+                                    <?php else: ?>
+                                        <?= htmlspecialchars(ticketUserInitials($clientInfo['name'] ?? 'Cliente')) ?>
+                                    <?php endif; ?>
                                 </div>
 
                                 <div>
@@ -905,7 +928,27 @@ require_once __DIR__ . '/../layouts/header.php';
 
                                 <div class="ticket-client-info-item">
                                     <span>Empresa</span>
-                                    <strong><?= !empty($clientInfo['company']) ? htmlspecialchars($clientInfo['company']) : 'No registrado' ?></strong>
+                                    <strong>
+                                        <?= htmlspecialchars(
+                                            $clientInfo['business_name']
+                                            ?? $clientInfo['company']
+                                            ?? 'No registrado'
+                                        ) ?>
+                                    </strong>
+                                </div>
+
+                                <div class="ticket-client-info-item">
+                                    <span>RUC</span>
+                                    <strong><?= htmlspecialchars($clientInfo['ruc'] ?? 'No registrado') ?></strong>
+                                </div>
+
+                                <div class="ticket-client-info-item">
+                                    <span>Contrato</span>
+                                    <strong>
+                                        <?= htmlspecialchars(
+                                            getSlaContractLabel($clientInfo['sla_contract_type'] ?? '8_5')
+                                        ) ?>
+                                    </strong>
                                 </div>
                             </div>
 
@@ -1009,91 +1052,131 @@ require_once __DIR__ . '/../layouts/header.php';
                 </div>
             </div>
 
-            <div class="ticket-info-grid">
-                <div class="ticket-info-item">
-                    <span class="label">Cliente</span>
+            <?php
+            $ttaDetailHours = getTicketTtaHours($ticket);
+            $ttaDetailLabel = $ttaDetailHours === null
+                ? 'Pendiente'
+                : formatSlaDuration($ttaDetailHours);
+            $ttaDetailClass = $ttaDetailHours === null ? 'pending' : 'success';
+
+            $ttrDetailHours = getTicketTtrHours($ticket);
+            $ttrDetailLabel = $ttrDetailHours === null
+                ? 'Pendiente'
+                : formatSlaDuration($ttrDetailHours);
+            $ttrDetailClass = $ttrDetailHours === null ? 'pending' : 'success';
+
+            $assignedLevelLabel = !empty($ticket['assigned_level'])
+                ? 'Nivel ' . (int)$ticket['assigned_level']
+                : 'Sin nivel asignado';
+
+            $companyLabel = $ticket['company_business_name']
+                ?? $ticket['requester_company_legacy']
+                ?? 'Sin empresa';
+            ?>
+
+            <div class="ticket-summary-grid">
+                <div class="ticket-summary-item">
+                    <span class="ticket-summary-label">Cliente</span>
                     <strong><?= htmlspecialchars($ticket['requester_name'] ?? 'No disponible') ?></strong>
+                    <small><?= htmlspecialchars($companyLabel) ?></small>
                 </div>
 
-                <div class="ticket-info-item">
-                    <span class="label">Asignado a</span>
+                <div class="ticket-summary-item ticket-summary-highlight">
+                    <span class="ticket-summary-label">Asignación</span>
                     <strong><?= !empty($ticket['assigned_name']) ? htmlspecialchars($ticket['assigned_name']) : 'Sin asignar' ?></strong>
+                    <small><?= htmlspecialchars($assignedLevelLabel) ?></small>
                 </div>
 
-                <div class="ticket-info-item">
-                    <span class="label">Categoría</span>
+                <div class="ticket-summary-item">
+                    <span class="ticket-summary-label">Categoría</span>
                     <strong><?= htmlspecialchars($ticket['category'] ?? 'No definida') ?></strong>
+                    <small>Clasificación de la incidencia</small>
                 </div>
 
-                <div class="ticket-info-item">
-                    <span class="label">SLA objetivo</span>
-                    <strong><?= (int)($ticket['sla_hours'] ?? 0) ?> horas</strong>
+                <div class="ticket-summary-item">
+                    <span class="ticket-summary-label">Creación</span>
+                    <strong><?= !empty($ticket['created_at']) ? date('d/m/Y H:i', strtotime($ticket['created_at'])) : 'No disponible' ?></strong>
+                    <small>Registro inicial del ticket</small>
                 </div>
 
-                <div class="ticket-info-item">
-                    <span class="label">Tiempo de respuesta (TTA)</span>
-                    <?php
-                    $firstResponseAt = $ticket['level_first_response_at']
-                        ?? $ticket['first_response_at']
-                        ?? null;
-
-                    $ttaDetailLabel = formatBusinessTimeStatus(
-                        $ticket['created_at'] ?? null,
-                        $firstResponseAt,
-                        empty($firstResponseAt)
-                    );
-
-                    $ttaDetailClass = match ($ttaDetailLabel) {
-                        'Pendiente', 'Fuera de horario' => 'pending',
-                        default => 'success',
-                    };
-                    ?>
-                    <strong class="<?= $ttaDetailClass ?>">
-                        <?= htmlspecialchars($ttaDetailLabel) ?>
+                <div class="ticket-summary-item">
+                    <span class="ticket-summary-label">Primera atención</span>
+                    <strong class="<?= empty($ticket['first_response_at']) ? 'pending' : 'success' ?>">
+                        <?= !empty($ticket['first_response_at'])
+                            ? date('d/m/Y H:i', strtotime($ticket['first_response_at']))
+                            : 'Pendiente' ?>
                     </strong>
+                    <small>Primera respuesta técnica</small>
                 </div>
 
-                <div class="ticket-info-item">
-                    <span class="label">Tiempo de resolución (TTR)</span>
-                    <?php
-                    $closedAt = $ticket['closed_at'] ?? null;
-
-                    if (empty($closedAt) && ($ticket['status'] ?? '') === 'CERRADO') {
-                        $closedAt = $ticket['updated_at'] ?? null;
-                    }
-
-                    $ttrDetailLabel = formatBusinessTimeStatus(
-                        $ticket['created_at'] ?? null,
-                        $closedAt,
-                        ($ticket['status'] ?? '') !== 'CERRADO'
-                    );
-
-                    $ttrDetailClass = match ($ttrDetailLabel) {
-                        'Pendiente', 'Fuera de horario' => 'pending',
-                        default => 'success',
-                    };
-                    ?>
-                    <strong class="<?= $ttrDetailClass ?>">
-                        <?= htmlspecialchars($ttrDetailLabel) ?>
-                    </strong>
+                <div class="ticket-summary-item">
+                    <span class="ticket-summary-label">Última actualización</span>
+                    <strong><?= !empty($ticket['updated_at']) ? date('d/m/Y H:i', strtotime($ticket['updated_at'])) : 'No disponible' ?></strong>
+                    <small><?= htmlspecialchars($lastActivity['actor_name'] ?? $lastActivity['actor_role'] ?? 'Sistema') ?></small>
                 </div>
 
-                <div class="ticket-info-item">
-                    <span class="label">Cumplimiento SLA</span>
-                    <strong class="<?=
-                        ($ticket['sla_met'] ?? null) === null ? 'pending' :
-                        ((int)$ticket['sla_met'] === 1 ? 'success' : 'danger')
-                    ?>">
-                        <?php if (($ticket['sla_met'] ?? null) === null): ?>
-                            Pendiente
-                        <?php elseif ((int)$ticket['sla_met'] === 1): ?>
-                            Cumplido
-                        <?php else: ?>
-                            No cumplido
-                        <?php endif; ?>
-                    </strong>
+                <div class="ticket-summary-item">
+                    <span class="ticket-summary-label">TTA</span>
+                    <strong class="<?= $ttaDetailClass ?>"><?= htmlspecialchars($ttaDetailLabel) ?></strong>
+                    <small>Tiempo de primera atención</small>
+                </div>
+
+                <div class="ticket-summary-item">
+                    <span class="ticket-summary-label">TTR</span>
+                    <strong class="<?= $ttrDetailClass ?>"><?= htmlspecialchars($ttrDetailLabel) ?></strong>
+                    <small>Tiempo total de resolución</small>
                 </div>
             </div>
+
+            <details class="ticket-extra-details">
+                <summary>
+                    <span>
+                        <strong>Más información operativa</strong>
+                        <small>Contrato, cierre y cumplimiento del SLA</small>
+                    </span>
+                    <i class="fa-solid fa-chevron-down" aria-hidden="true"></i>
+                </summary>
+
+                <div class="ticket-extra-grid">
+                    <div>
+                        <span>Contrato SLA</span>
+                        <strong><?= htmlspecialchars($slaTimer['contract_label'] ?? 'Contrato 8/5') ?></strong>
+                    </div>
+
+                    <div>
+                        <span>SLA objetivo</span>
+                        <strong><?= htmlspecialchars(formatSlaDuration($ticket['sla_hours'] ?? 0)) ?></strong>
+                    </div>
+
+                    <div>
+                        <span>Cumplimiento SLA</span>
+                        <strong class="<?= htmlspecialchars($slaStatusDisplayClass) ?>">
+                            <?= htmlspecialchars($slaStatusDisplayLabel) ?>
+                        </strong>
+                    </div>
+
+                    <div>
+                        <span>Fecha de cierre</span>
+                        <strong>
+                            <?= !empty($ticket['closed_at'])
+                                ? date('d/m/Y H:i', strtotime($ticket['closed_at']))
+                                : 'Ticket abierto' ?>
+                        </strong>
+                    </div>
+
+                    <div>
+                        <span>Cerrado por cliente</span>
+                        <strong><?= ((int)($ticket['client_closed'] ?? 0) === 1) ? 'Sí' : 'No' ?></strong>
+                    </div>
+
+                    <?php if (in_array($currentRoleForView, ['ADMIN', 'TECH'], true)): ?>
+                        <div>
+                            <span>Última acción por</span>
+                            <strong><?= htmlspecialchars($lastActivity['actor_name'] ?? $lastActivity['actor_role'] ?? 'Sistema') ?></strong>
+                        </div>
+                    <?php endif; ?>
+                </div>
+            </details>
 
             <?php if (
                 (user()['role'] ?? '') === 'CLIENT' &&
@@ -1111,6 +1194,108 @@ require_once __DIR__ . '/../layouts/header.php';
                 </div>
             <?php endif; ?>
         </section>
+
+        <?php if ($currentRoleForView === 'TECH'): ?>
+            <section
+                class="card sla-timer-card sla-timer-card-enhanced ticket-tech-sla-inline"
+                data-sla-timer="1"
+                        data-timezone-offset="<?= (int)(new DateTimeImmutable('now', new DateTimeZone('America/Lima')))->getOffset() ?>"
+                data-sla-seconds="<?= (int)round(($slaTimer['sla_hours'] ?? 0) * 3600) ?>"
+                data-elapsed-seconds="<?= (int)round(($slaTimer['elapsed_hours'] ?? 0) * 3600) ?>"
+                data-is-closed="<?= !empty($slaTimer['is_closed']) ? '1' : '0' ?>"
+                data-contract="<?= htmlspecialchars($slaTimer['contract_type'] ?? '8_5') ?>"
+                data-is-running="<?= !empty($slaTimer['is_running']) ? '1' : '0' ?>"
+                title="<?= htmlspecialchars($slaTimer['tooltip'] ?? '') ?>">
+                <div class="sla-timer-header">
+                    <div>
+                        <span class="sla-timer-eyebrow">Control de tiempo</span>
+                        <h3>Cronómetro SLA</h3>
+                    </div>
+
+                    <span
+                        class="sla-timer-badge <?= htmlspecialchars($slaTimer['phase_class'] ?? 'sla-phase-paused') ?>"
+                        data-sla-badge>
+                        <?= htmlspecialchars($slaTimer['phase_label'] ?? 'SLA no definido') ?>
+                    </span>
+                </div>
+
+                <div class="sla-contract-row">
+                    <span>
+                        <i class="fa-regular fa-clock"></i>
+                        <?= htmlspecialchars($slaTimer['contract_label'] ?? 'Contrato 8/5') ?>
+                    </span>
+
+                    <strong>
+                        Objetivo:
+                        <?= htmlspecialchars(formatSlaDuration($slaTimer['sla_hours'] ?? 0)) ?>
+                    </strong>
+                </div>
+
+                <div class="sla-timer-progress">
+                    <div class="sla-timer-bar">
+                        <div
+                            class="sla-timer-bar-fill <?= htmlspecialchars($slaTimer['phase_class'] ?? 'sla-phase-paused') ?>"
+                            data-sla-bar
+                            style="width: <?= number_format((float)($slaTimer['progress_percent'] ?? 0), 2, '.', '') ?>%;"></div>
+                    </div>
+
+                    <div class="sla-timer-percent" data-sla-percent>
+                        <?= number_format((float)($slaTimer['progress_raw_percent'] ?? 0), 1) ?>%
+                    </div>
+                </div>
+
+                <div class="sla-timer-times sla-timer-times-compact">
+                    <div class="sla-time-box">
+                        <span>Consumido</span>
+                        <strong data-sla-elapsed>
+                            <?= htmlspecialchars(formatDecimalHoursToClock($slaTimer['elapsed_hours'] ?? 0)) ?>
+                        </strong>
+                    </div>
+
+                    <div class="sla-time-box">
+                        <span data-sla-remaining-label>
+                            <?= ($slaTimer['remaining_signed_hours'] ?? 0) < 0
+                                ? 'Tiempo excedido'
+                                : 'Tiempo restante' ?>
+                        </span>
+
+                        <strong data-sla-remaining>
+                            <?= htmlspecialchars(
+                                formatDecimalHoursToClock(
+                                    ($slaTimer['remaining_signed_hours'] ?? 0) < 0
+                                        ? $slaTimer['overtime_hours']
+                                        : $slaTimer['remaining_hours']
+                                )
+                            ) ?>
+                        </strong>
+                    </div>
+                </div>
+
+                <div class="sla-timer-milestones">
+                    <div>
+                        <span>Inicio</span>
+                        <strong>
+                            <?= !empty($slaTimer['started_at'])
+                                ? date('d/m/Y H:i', strtotime($slaTimer['started_at']))
+                                : 'No disponible' ?>
+                        </strong>
+                    </div>
+
+                    <div>
+                        <span>Vencimiento estimado</span>
+                        <strong>
+                            <?= !empty($slaTimer['deadline'])
+                                ? date('d/m/Y H:i', strtotime($slaTimer['deadline']))
+                                : 'No disponible' ?>
+                        </strong>
+                    </div>
+                </div>
+
+                <p class="sla-timer-note <?= !empty($slaTimer['is_paused']) ? 'paused' : '' ?>" data-sla-note>
+                    <?= htmlspecialchars($slaTimer['note'] ?? 'Sin información de SLA.') ?>
+                </p>
+            </section>
+        <?php endif; ?>
 
         <!-- Tabs también para cliente/tech -->
         <section class="card ticket-tabs-card">
@@ -1142,9 +1327,7 @@ require_once __DIR__ . '/../layouts/header.php';
                             <div class="ticket-message-item">
                                 <div class="ticket-message-top">
                                     <div class="ticket-message-author">
-                                        <div class="ticket-message-avatar">
-                                            <?= htmlspecialchars(ticketUserInitials($message['name'] ?? 'Usuario')) ?>
-                                        </div>
+                                        <?= ticketMessageAvatarMarkup($message) ?>
                                         <div class="ticket-message-author-info">
                                             <strong><?= htmlspecialchars($message['name']) ?></strong>
                                             <span class="message-role"><?= htmlspecialchars(ticketRoleLabel($message['role'] ?? '')) ?></span>
@@ -1154,6 +1337,9 @@ require_once __DIR__ . '/../layouts/header.php';
                                     <div class="message-right">
                                         <span class="message-date">
                                             <?= !empty($message['created_at']) ? date('d/m/Y H:i', strtotime($message['created_at'])) : '' ?>
+                                                            <?php if (!empty($message['updated_at'])): ?>
+                                                                <small class="message-edited">Editado</small>
+                                                            <?php endif; ?>
                                         </span>
 
                                         <?php if (
@@ -1169,7 +1355,8 @@ require_once __DIR__ . '/../layouts/header.php';
                                                                     class="message-edit-btn"
                                                                     title="Editar mensaje"
                                                                     data-message-id="<?= (int)$message['id'] ?>"
-                                                                    data-message-text="<?= htmlspecialchars($message['message'] ?? '', ENT_QUOTES, 'UTF-8') ?>"
+                                                                    data-message-content="<?= htmlspecialchars(base64_encode((string)($message['message'] ?? '')), ENT_QUOTES, 'UTF-8') ?>"
+                                                                    data-message-format="<?= htmlspecialchars($message['message_format'] ?? 'plain') ?>"
                                                                     onclick="openEditMessageModalFromButton(this)"
                                                                 >
                                                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 24 24">
@@ -1192,9 +1379,16 @@ require_once __DIR__ . '/../layouts/header.php';
                                     </div>
                                 </div>
 
-                                <div class="ticket-message-body">
-                                    <?= nl2br(htmlspecialchars($message['message'])) ?>
+                                <div class="ticket-message-body ticket-rich-message">
+                                    <?= ticketRenderStoredMessage(
+                                        $message['message'] ?? '',
+                                        $message['message_format'] ?? 'plain'
+                                    ) ?>
                                 </div>
+
+                                <?= ticketRenderAttachmentList(
+                                    $messageAttachments[(int)$message['id']] ?? []
+                                ) ?>
                             </div>
                         <?php endforeach; ?>
                     </div>
@@ -1260,9 +1454,7 @@ require_once __DIR__ . '/../layouts/header.php';
                                 <div class="ticket-message-item internal-message-item">
                                     <div class="ticket-message-top">
                                         <div class="ticket-message-author">
-                                            <div class="ticket-message-avatar internal-avatar">
-                                                <?= htmlspecialchars(ticketUserInitials($internalMessage['name'] ?? 'Usuario')) ?>
-                                            </div>
+                                            <?= ticketMessageAvatarMarkup($internalMessage, true) ?>
                                             <div class="ticket-message-author-info">
                                                 <strong><?= htmlspecialchars($internalMessage['name'] ?? 'Usuario') ?></strong>
                                                 <span class="message-role internal-role"><?= htmlspecialchars(ticketRoleLabel($internalMessage['role'] ?? '')) ?></span>
@@ -1276,9 +1468,16 @@ require_once __DIR__ . '/../layouts/header.php';
                                         </div>
                                     </div>
 
-                                    <div class="ticket-message-body">
-                                        <?= nl2br(htmlspecialchars($internalMessage['message'])) ?>
+                                    <div class="ticket-message-body ticket-rich-message">
+                                        <?= ticketRenderStoredMessage(
+                                            $internalMessage['message'] ?? '',
+                                            $internalMessage['message_format'] ?? 'plain'
+                                        ) ?>
                                     </div>
+
+                                    <?= ticketRenderAttachmentList(
+                                        $internalMessageAttachments[(int)$internalMessage['id']] ?? []
+                                    ) ?>
                                 </div>
                             <?php endforeach; ?>
                         </div>
@@ -1290,24 +1489,26 @@ require_once __DIR__ . '/../layouts/header.php';
                     <?php endif; ?>
 
                     <?php if (($ticket['status'] ?? '') !== 'CERRADO'): ?>
-                        <form action="/helpdesk-php/save-internal-message.php" method="POST" class="ticket-form internal-message-form">
-                            <input type="hidden" name="ticket_id" value="<?= (int)$ticket['id'] ?>">
+                        <form
+                                            action="/helpdesk-php/save-internal-message.php"
+                                            method="POST"
+                                            enctype="multipart/form-data"
+                                            class="ticket-form internal-message-form ticket-rich-message-form">
+                                            <input type="hidden" name="ticket_id" value="<?= (int)$ticket['id'] ?>">
 
-                            <div class="form-group">
-                                <label for="internal_message_tech">Mensaje interno</label>
-                                <textarea
-                                    id="internal_message_tech"
-                                    name="message"
-                                    rows="4"
-                                    placeholder="Escribe una nota interna para el equipo técnico..."
-                                    required
-                                ></textarea>
-                            </div>
+                                            <?php ticketMessageEditor(
+                                                'techInternalReply',
+                                                'Mensaje interno',
+                                                'Escribe una nota privada para el equipo técnico.'
+                                            ); ?>
 
-                            <div class="ticket-form-actions">
-                                <button type="submit" class="btn-primary">Enviar mensaje interno</button>
-                            </div>
-                        </form>
+                                            <div class="ticket-form-actions">
+                                                <button type="submit" class="btn-primary">
+                                                    <i class="fa-solid fa-lock"></i>
+                                                    Enviar mensaje interno
+                                                </button>
+                                            </div>
+                                        </form>
                     <?php else: ?>
                         <div class="internal-closed-note">El ticket está cerrado. La conversación interna queda en modo lectura.</div>
                     <?php endif; ?>
@@ -1322,25 +1523,27 @@ require_once __DIR__ . '/../layouts/header.php';
                     <p>Escribe un mensaje para dar seguimiento a esta incidencia.</p>
                 </div>
 
-                <form action="/helpdesk-php/reply-ticket.php" method="POST" class="ticket-form">
-                    <input type="hidden" name="ticket_id" value="<?= (int)$ticket['id'] ?>">
+                <form
+                                    action="/helpdesk-php/reply-ticket.php"
+                                    method="POST"
+                                    enctype="multipart/form-data"
+                                    class="ticket-form ticket-rich-message-form">
+                                    <input type="hidden" name="ticket_id" value="<?= (int)$ticket['id'] ?>">
 
-                    <div class="form-group">
-                        <label for="message">Mensaje</label>
-                        <textarea
-                            id="message"
-                            name="message"
-                            rows="6"
-                            placeholder="Escribe tu respuesta aquí..."
-                            required
-                        ></textarea>
-                    </div>
+                                    <?php ticketMessageEditor(
+                                        'publicReply',
+                                        'Mensaje',
+                                        'Escribe una respuesta clara. Puedes insertar imágenes dentro del contenido.'
+                                    ); ?>
 
-                    <div class="ticket-form-actions">
-                        <a href="/helpdesk-php/home.php" class="btn-secondary">Atrás</a>
-                        <button type="submit" class="btn-primary">Enviar respuesta</button>
-                    </div>
-                </form>
+                                    <div class="ticket-form-actions">
+                                        <a href="/helpdesk-php/home.php" class="btn-secondary">Atrás</a>
+                                        <button type="submit" class="btn-primary">
+                                            <i class="fa-solid fa-paper-plane"></i>
+                                            Enviar respuesta
+                                        </button>
+                                    </div>
+                                </form>
             </section>
         <?php endif; ?>
 
@@ -1438,14 +1641,12 @@ require_once __DIR__ . '/../layouts/header.php';
                     Actualiza el contenido del mensaje sin salir del detalle del ticket.
                 </p>
 
-                <label class="edit-message-modal-label" for="editMessageText">Mensaje</label>
-                <textarea
-                    name="message"
-                    id="editMessageText"
-                    class="edit-message-modal-textarea"
-                    rows="5"
-                    required
-                ></textarea>
+                <?php ticketMessageEditor(
+                    'editMessageRich',
+                    'Mensaje',
+                    'Actualiza el contenido del mensaje.',
+                    false
+                ); ?>
             </div>
 
             <div class="custom-modal-footer">
@@ -1555,102 +1756,244 @@ require_once __DIR__ . '/../layouts/header.php';
 <script>
 
 /**
- * Cronómetro SLA visual.
- * Incrementa solo si el ticket está abierto y el navegador está dentro del horario laboral.
+ * Cronómetro SLA visual en tiempo real.
+ *
+ * En lugar de sumar un segundo por intervalo, calcula la diferencia real
+ * desde que la página fue abierta. Así no se congela cuando la pestaña
+ * pierde foco, el navegador reduce los intervalos o el equipo entra en reposo.
  */
 function formatSlaSeconds(totalSeconds) {
-    totalSeconds = Math.max(0, Math.round(Number(totalSeconds) || 0));
-    const h = Math.floor(totalSeconds / 3600);
-    const m = Math.floor((totalSeconds % 3600) / 60);
-    const s = totalSeconds % 60;
+    totalSeconds = Math.max(0, Math.floor(Number(totalSeconds) || 0));
 
-    return String(h).padStart(2, '0') + ':' + String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
+    const hours = Math.floor(totalSeconds / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const seconds = totalSeconds % 60;
+
+    return String(hours).padStart(2, '0')
+        + ':' + String(minutes).padStart(2, '0')
+        + ':' + String(seconds).padStart(2, '0');
 }
 
-function isBrowserBusinessTime() {
-    const now = new Date();
-    const day = now.getDay(); // 0 domingo, 6 sábado
+function fixedTimezoneParts(timestampMs, offsetSeconds) {
+    const shifted = new Date(timestampMs + (offsetSeconds * 1000));
 
-    if (day === 0) {
+    return {
+        year: shifted.getUTCFullYear(),
+        month: shifted.getUTCMonth(),
+        day: shifted.getUTCDate(),
+        weekday: shifted.getUTCDay(),
+        hour: shifted.getUTCHours(),
+        minute: shifted.getUTCMinutes(),
+        second: shifted.getUTCSeconds()
+    };
+}
+
+function isSlaScheduleRunning(timestampMs, contractType, offsetSeconds) {
+    if (contractType === '24_7') {
+        return true;
+    }
+
+    const parts = fixedTimezoneParts(timestampMs, offsetSeconds);
+
+    if (parts.weekday === 0 || parts.weekday === 6) {
         return false;
     }
 
-    const minutes = now.getHours() * 60 + now.getMinutes();
-    const start = 8 * 60;
-    const end = 17 * 60 + 50;
+    const currentMinutes = (parts.hour * 60) + parts.minute;
 
-    return minutes >= start && minutes <= end;
+    return currentMinutes >= (8 * 60) && currentMinutes < (17 * 60);
 }
 
-function updateSlaTimerVisual() {
-    const card = document.getElementById('slaTimerCard');
-    const badge = document.getElementById('slaTimerBadge');
-    const bar = document.getElementById('slaTimerBarFill');
-    const percentText = document.getElementById('slaTimerPercent');
-    const elapsedText = document.getElementById('slaTimerElapsed');
-    const remainingText = document.getElementById('slaTimerRemaining');
-    const note = document.getElementById('slaTimerNote');
+function businessSecondsBetween(startMs, endMs, offsetSeconds) {
+    if (endMs <= startMs) {
+        return 0;
+    }
 
-    if (!card || !badge || !bar || !percentText || !elapsedText || !remainingText || !note) {
+    const startParts = fixedTimezoneParts(startMs, offsetSeconds);
+    const endParts = fixedTimezoneParts(endMs, offsetSeconds);
+
+    let localDayCursor = Date.UTC(
+        startParts.year,
+        startParts.month,
+        startParts.day
+    );
+
+    const localEndDay = Date.UTC(
+        endParts.year,
+        endParts.month,
+        endParts.day
+    );
+
+    let totalMilliseconds = 0;
+
+    while (localDayCursor <= localEndDay) {
+        const localDay = new Date(localDayCursor);
+        const weekday = localDay.getUTCDay();
+
+        if (weekday !== 0 && weekday !== 6) {
+            const year = localDay.getUTCFullYear();
+            const month = localDay.getUTCMonth();
+            const day = localDay.getUTCDate();
+
+            const workStartMs = Date.UTC(year, month, day, 8, 0, 0)
+                - (offsetSeconds * 1000);
+            const workEndMs = Date.UTC(year, month, day, 17, 0, 0)
+                - (offsetSeconds * 1000);
+
+            const overlapStart = Math.max(startMs, workStartMs);
+            const overlapEnd = Math.min(endMs, workEndMs);
+
+            if (overlapEnd > overlapStart) {
+                totalMilliseconds += overlapEnd - overlapStart;
+            }
+        }
+
+        localDayCursor += 24 * 60 * 60 * 1000;
+    }
+
+    return Math.floor(totalMilliseconds / 1000);
+}
+
+function initializeSlaTimerCard(card) {
+    if (!card || card.dataset.slaRealtimeReady === '1') {
         return;
     }
 
-    const isClosed = card.dataset.isClosed === '1';
-    const slaSeconds = Math.max(0, Number(card.dataset.slaSeconds || 0));
-    let elapsedSeconds = Math.max(0, Number(card.dataset.elapsedSeconds || 0));
+    card.dataset.slaRealtimeReady = '1';
+    card.dataset.baseElapsedSeconds = String(
+        Math.max(0, Number(card.dataset.elapsedSeconds || 0))
+    );
+    card.dataset.clientStartedAt = String(Date.now());
 
-    if (!isClosed && isBrowserBusinessTime() && slaSeconds > 0) {
-        elapsedSeconds += 1;
-        card.dataset.elapsedSeconds = String(elapsedSeconds);
+    const badge = card.querySelector('[data-sla-badge]');
+    const note = card.querySelector('[data-sla-note]');
+
+    card.dataset.initialPhaseClass = badge
+        ? Array.from(badge.classList)
+            .find(className => className.startsWith('sla-phase-')) || 'sla-phase-paused'
+        : 'sla-phase-paused';
+
+    card.dataset.initialPhaseLabel = badge?.textContent?.trim() || 'Ticket cerrado';
+    card.dataset.initialNote = note?.textContent?.trim() || '';
+}
+
+function updateSlaTimerCard(card) {
+    initializeSlaTimerCard(card);
+
+    const badge = card.querySelector('[data-sla-badge]');
+    const bar = card.querySelector('[data-sla-bar]');
+    const percentText = card.querySelector('[data-sla-percent]');
+    const elapsedText = card.querySelector('[data-sla-elapsed]');
+    const remainingText = card.querySelector('[data-sla-remaining]');
+    const remainingLabel = card.querySelector('[data-sla-remaining-label]');
+    const note = card.querySelector('[data-sla-note]');
+
+    if (!badge || !bar || !percentText || !elapsedText || !remainingText || !remainingLabel || !note) {
+        return;
     }
 
-    const remainingSeconds = Math.max(0, slaSeconds - elapsedSeconds);
-    const percent = slaSeconds > 0 ? Math.min(100, Math.max(0, (elapsedSeconds / slaSeconds) * 100)) : 0;
+    const nowMs = Date.now();
+    const isClosed = card.dataset.isClosed === '1';
+    const contractType = card.dataset.contract || '8_5';
+    const timezoneOffset = Number(card.dataset.timezoneOffset || -18000);
+    const slaSeconds = Math.max(0, Number(card.dataset.slaSeconds || 0));
+    const baseElapsedSeconds = Math.max(
+        0,
+        Number(card.dataset.baseElapsedSeconds || card.dataset.elapsedSeconds || 0)
+    );
+    const clientStartedAt = Number(card.dataset.clientStartedAt || nowMs);
+
+    let elapsedSeconds = baseElapsedSeconds;
+
+    if (!isClosed && slaSeconds > 0) {
+        if (contractType === '24_7') {
+            elapsedSeconds += Math.max(
+                0,
+                Math.floor((nowMs - clientStartedAt) / 1000)
+            );
+        } else {
+            elapsedSeconds += businessSecondsBetween(
+                clientStartedAt,
+                nowMs,
+                timezoneOffset
+            );
+        }
+    }
+
+    const scheduleRunning = isSlaScheduleRunning(
+        nowMs,
+        contractType,
+        timezoneOffset
+    );
+
+    const remainingSigned = slaSeconds - elapsedSeconds;
+    const displaySeconds = Math.abs(remainingSigned);
+    const rawPercent = slaSeconds > 0
+        ? Math.max(0, (elapsedSeconds / slaSeconds) * 100)
+        : 0;
+    const barPercent = Math.min(100, rawPercent);
 
     let phaseClass = 'sla-phase-green';
-    let label = 'Dentro del tiempo';
-    let message = 'El SLA se está contabilizando dentro del horario laboral.';
-    let tooltip = message;
+    let label = 'Dentro del SLA';
+    let message = 'El ticket se encuentra dentro del tiempo objetivo.';
 
-    if (!isClosed && !isBrowserBusinessTime()) {
+    if (slaSeconds <= 0) {
         phaseClass = 'sla-phase-paused';
-        label = 'Tiempo pausado';
-        message = 'El conteo del SLA está pausado porque ahora no es horario laboral.';
-        tooltip = 'Tiempo pausado por tiempo no laboral';
-    } else if (percent >= 100) {
+        label = 'SLA no definido';
+        message = 'Este ticket no tiene un SLA objetivo configurado.';
+    } else if (isClosed) {
+        phaseClass = card.dataset.initialPhaseClass || 'sla-phase-paused';
+        label = card.dataset.initialPhaseLabel || 'Ticket cerrado';
+        message = card.dataset.initialNote || 'El conteo del SLA finalizó.';
+    } else if (contractType !== '24_7' && !scheduleRunning) {
+        phaseClass = 'sla-phase-paused';
+        label = 'Conteo pausado';
+        message = 'El contrato 8/5 está fuera del horario de lunes a viernes, 08:00 a 17:00.';
+    } else if (rawPercent >= 100) {
         phaseClass = 'sla-phase-red';
         label = 'SLA vencido';
-        message = isClosed ? 'El ticket está cerrado, por lo que el conteo del SLA ya finalizó.' : 'El SLA llegó a su límite de tiempo.';
-        tooltip = 'El tiempo objetivo del SLA fue consumido.';
-    } else if (percent >= 85) {
-        phaseClass = 'sla-phase-red';
+        message = 'El tiempo objetivo fue superado y el ticket requiere atención prioritaria.';
+    } else if (rawPercent >= 75) {
+        phaseClass = 'sla-phase-yellow';
         label = 'Próximo a vencer';
-        message = isClosed ? 'El ticket está cerrado, por lo que el conteo del SLA ya finalizó.' : 'El ticket está cerca de consumir el SLA.';
-        tooltip = 'El SLA está cerca de llegar a su límite.';
-    } else if (percent >= 50) {
+        message = 'El ticket está cerca de consumir el tiempo objetivo.';
+    } else if (rawPercent >= 50) {
         phaseClass = 'sla-phase-yellow';
         label = 'En seguimiento';
-        message = isClosed ? 'El ticket está cerrado, por lo que el conteo del SLA ya finalizó.' : 'El ticket ya consumió más de la mitad del SLA.';
-        tooltip = 'El ticket ya consumió más de la mitad del SLA.';
-    }
-
-    if (isClosed) {
-        message = 'El ticket está cerrado, por lo que el conteo del SLA ya finalizó.';
+        message = 'El ticket consumió más de la mitad del SLA.';
     }
 
     badge.className = 'sla-timer-badge ' + phaseClass;
     bar.className = 'sla-timer-bar-fill ' + phaseClass;
-    badge.textContent = isClosed ? badge.textContent : label;
-    bar.style.width = percent.toFixed(2) + '%';
-    percentText.textContent = percent.toFixed(1) + '%';
+    badge.textContent = label;
+    bar.style.width = barPercent.toFixed(2) + '%';
+    percentText.textContent = rawPercent.toFixed(1) + '%';
     elapsedText.textContent = formatSlaSeconds(elapsedSeconds);
-    remainingText.textContent = formatSlaSeconds(remainingSeconds);
+    remainingText.textContent = formatSlaSeconds(displaySeconds);
+    remainingLabel.textContent = remainingSigned < 0
+        ? 'Tiempo excedido'
+        : 'Tiempo restante';
     note.textContent = message;
-    card.setAttribute('title', tooltip);
+    note.classList.toggle('paused', phaseClass === 'sla-phase-paused');
+    card.setAttribute('title', message);
 }
 
-updateSlaTimerVisual();
-setInterval(updateSlaTimerVisual, 1000);
+function updateAllSlaTimers() {
+    document.querySelectorAll('[data-sla-timer="1"]').forEach(updateSlaTimerCard);
+}
+
+updateAllSlaTimers();
+
+const slaRealtimeInterval = window.setInterval(updateAllSlaTimers, 1000);
+
+document.addEventListener('visibilitychange', function () {
+    if (!document.hidden) {
+        updateAllSlaTimers();
+    }
+});
+
+window.addEventListener('focus', updateAllSlaTimers);
+window.addEventListener('pageshow', updateAllSlaTimers);
 
 let deleteMessageId = null;
 let closeTicketId = null;
@@ -1691,40 +2034,62 @@ document.addEventListener('DOMContentLoaded', function () {
 /**
  * Modal editar mensaje
  */
+function decodeBase64Utf8(value) {
+    try {
+        const bytes = Uint8Array.from(atob(value), character => character.charCodeAt(0));
+        return new TextDecoder('utf-8').decode(bytes);
+    } catch (error) {
+        return '';
+    }
+}
+
+function escapeRichText(value) {
+    const element = document.createElement('div');
+    element.textContent = value;
+    return element.innerHTML.replace(/\n/g, '<br>');
+}
+
 function openEditMessageModalFromButton(button) {
     if (!button) return;
 
     const messageId = button.getAttribute('data-message-id') || '';
-    const messageText = button.getAttribute('data-message-text') || '';
+    const encodedContent = button.getAttribute('data-message-content') || '';
+    const messageFormat = button.getAttribute('data-message-format') || 'plain';
+    const decodedContent = decodeBase64Utf8(encodedContent);
 
-    openEditMessageModal(messageId, messageText);
+    openEditMessageModal(messageId, decodedContent, messageFormat);
 }
 
-function openEditMessageModal(messageId, messageText) {
+function openEditMessageModal(messageId, messageContent, messageFormat) {
     const modal = document.getElementById('editMessageModal');
     const input = document.getElementById('editMessageId');
-    const textarea = document.getElementById('editMessageText');
+    const editor = document.getElementById('editMessageRichEditor');
+    const hiddenInput = document.getElementById('editMessageRichInput');
 
-    if (!modal || !input || !textarea) return;
+    if (!modal || !input || !editor || !hiddenInput) return;
 
     input.value = messageId;
-    textarea.value = messageText;
+    editor.innerHTML = messageFormat === 'html'
+        ? messageContent
+        : '<p>' + escapeRichText(messageContent) + '</p>';
+    hiddenInput.value = editor.innerHTML;
     modal.classList.add('show');
 
     setTimeout(function () {
-        textarea.focus();
-        textarea.setSelectionRange(textarea.value.length, textarea.value.length);
+        editor.focus();
     }, 80);
 }
 
 function closeEditMessageModal() {
     const modal = document.getElementById('editMessageModal');
     const input = document.getElementById('editMessageId');
-    const textarea = document.getElementById('editMessageText');
+    const editor = document.getElementById('editMessageRichEditor');
+    const hiddenInput = document.getElementById('editMessageRichInput');
 
     if (modal) modal.classList.remove('show');
     if (input) input.value = '';
-    if (textarea) textarea.value = '';
+    if (editor) editor.innerHTML = '';
+    if (hiddenInput) hiddenInput.value = '';
 }
 
 /**
@@ -1872,6 +2237,356 @@ document.addEventListener('keydown', function (e) {
     closeCloseTicketModal();
     closeAllClientTicketsModal();
 });
+
+
+/**
+ * Editor enriquecido de mensajes
+ */
+(function () {
+    function executeRichCommand(editor, command, value = null) {
+        editor.focus();
+        document.execCommand('styleWithCSS', false, true);
+        document.execCommand(command, false, value);
+    }
+
+    function applyFontSize(editor, size) {
+        const selection = window.getSelection();
+
+        if (!selection || selection.rangeCount === 0 || selection.isCollapsed) {
+            return;
+        }
+
+        const range = selection.getRangeAt(0);
+        const span = document.createElement('span');
+        span.style.fontSize = size;
+
+        try {
+            range.surroundContents(span);
+        } catch (error) {
+            const fragment = range.extractContents();
+            span.appendChild(fragment);
+            range.insertNode(span);
+        }
+
+        selection.removeAllRanges();
+        const newRange = document.createRange();
+        newRange.selectNodeContents(span);
+        selection.addRange(newRange);
+        editor.focus();
+    }
+
+    function createFileDataTransfer() {
+        try {
+            return new DataTransfer();
+        } catch (error) {
+            return null;
+        }
+    }
+
+    function initializeRichEditor(field) {
+        if (!field || field.dataset.richEditorReady === '1') {
+            return;
+        }
+
+        field.dataset.richEditorReady = '1';
+
+        const editor = field.querySelector('.ticket-rich-editor-area');
+        const hiddenInput = field.querySelector('[data-rich-input]');
+        const toolbar = field.querySelector('.ticket-rich-toolbar');
+        const imageInput = field.querySelector('[data-rich-images]');
+        const documentsInput = field.querySelector('[data-rich-documents]');
+        const documentTrigger = field.querySelector('[data-document-trigger]');
+        const documentList = field.querySelector('[data-document-list]');
+
+        if (!editor || !hiddenInput || !toolbar) {
+            return;
+        }
+
+        const imageTransfer = imageInput ? createFileDataTransfer() : null;
+        let documentTransfer = documentsInput ? createFileDataTransfer() : null;
+
+        toolbar.addEventListener('mousedown', function (event) {
+            if (event.target.closest('button')) {
+                event.preventDefault();
+            }
+        });
+
+        toolbar.addEventListener('click', function (event) {
+            const button = event.target.closest('button');
+
+            if (!button) {
+                return;
+            }
+
+            const command = button.dataset.richCommand;
+            const action = button.dataset.richAction;
+
+            if (command) {
+                executeRichCommand(editor, command);
+                return;
+            }
+
+            if (action === 'link') {
+                const url = window.prompt('Escribe la dirección del enlace:');
+
+                if (url) {
+                    executeRichCommand(editor, 'createLink', url);
+                }
+
+                return;
+            }
+
+            if (action === 'image' && imageInput) {
+                imageInput.click();
+            }
+        });
+
+        const blockSelect = toolbar.querySelector('[data-rich-block]');
+
+        blockSelect?.addEventListener('change', function () {
+            executeRichCommand(editor, 'formatBlock', this.value);
+            this.value = 'p';
+        });
+
+        const sizeSelect = toolbar.querySelector('[data-rich-size]');
+
+        sizeSelect?.addEventListener('change', function () {
+            applyFontSize(editor, this.value);
+        });
+
+        const colorInput = toolbar.querySelector('[data-rich-color]');
+
+        colorInput?.addEventListener('input', function () {
+            executeRichCommand(editor, 'foreColor', this.value);
+        });
+
+        const highlightInput = toolbar.querySelector('[data-rich-highlight]');
+
+        highlightInput?.addEventListener('input', function () {
+            executeRichCommand(editor, 'hiliteColor', this.value);
+        });
+
+        function addInlineImage(file) {
+            if (!imageInput || !imageTransfer) {
+                return;
+            }
+
+            if (!/^image\/(jpeg|png|webp|gif)$/i.test(file.type)) {
+                window.alert('Solo se permiten imágenes JPG, PNG, WEBP o GIF.');
+                return;
+            }
+
+            if (file.size > 10 * 1024 * 1024) {
+                window.alert('Cada imagen debe pesar como máximo 10 MB.');
+                return;
+            }
+
+            if (imageTransfer.items.length >= 8) {
+                window.alert('Solo puedes insertar hasta 8 imágenes por mensaje.');
+                return;
+            }
+
+            const inlineIndex = imageTransfer.items.length;
+            imageTransfer.items.add(file);
+            imageInput.files = imageTransfer.files;
+
+            const reader = new FileReader();
+
+            reader.onload = function () {
+                editor.focus();
+
+                const image = document.createElement('img');
+                image.src = String(reader.result || '');
+                image.alt = file.name || 'Imagen adjunta';
+                image.dataset.inlineIndex = String(inlineIndex);
+                image.className = 'ticket-rich-inline-image';
+
+                const selection = window.getSelection();
+
+                if (selection && selection.rangeCount > 0) {
+                    const range = selection.getRangeAt(0);
+                    range.deleteContents();
+                    range.insertNode(image);
+                    range.setStartAfter(image);
+                    range.collapse(true);
+                    selection.removeAllRanges();
+                    selection.addRange(range);
+                } else {
+                    editor.appendChild(image);
+                }
+
+                editor.appendChild(document.createElement('p'));
+            };
+
+            reader.readAsDataURL(file);
+        }
+
+        imageInput?.addEventListener('change', function () {
+            Array.from(this.files || []).forEach(addInlineImage);
+        });
+
+        editor.addEventListener('paste', function (event) {
+            const pastedImages = Array.from(event.clipboardData?.files || [])
+                .filter(file => file.type.startsWith('image/'));
+
+            if (pastedImages.length === 0) {
+                return;
+            }
+
+            event.preventDefault();
+            pastedImages.forEach(addInlineImage);
+        });
+
+        function rebuildDocumentInput(files) {
+            if (!documentsInput) {
+                return;
+            }
+
+            documentTransfer = createFileDataTransfer();
+
+            if (!documentTransfer) {
+                return;
+            }
+
+            files.forEach(file => documentTransfer.items.add(file));
+            documentsInput.files = documentTransfer.files;
+            renderDocuments();
+        }
+
+        function renderDocuments() {
+            if (!documentList || !documentsInput) {
+                return;
+            }
+
+            const files = Array.from(documentsInput.files || []);
+            documentList.innerHTML = '';
+
+            files.forEach((file, index) => {
+                const item = document.createElement('div');
+                item.className = 'ticket-document-chip';
+
+                const copy = document.createElement('span');
+                copy.innerHTML = '<strong></strong><small></small>';
+                copy.querySelector('strong').textContent = file.name;
+                copy.querySelector('small').textContent =
+                    (file.size / 1024 / 1024).toFixed(2) + ' MB';
+
+                const remove = document.createElement('button');
+                remove.type = 'button';
+                remove.setAttribute('aria-label', 'Quitar archivo');
+                remove.textContent = '×';
+                remove.addEventListener('click', function () {
+                    const nextFiles = files.filter((_, fileIndex) => fileIndex !== index);
+                    rebuildDocumentInput(nextFiles);
+                });
+
+                item.appendChild(copy);
+                item.appendChild(remove);
+                documentList.appendChild(item);
+            });
+        }
+
+        documentTrigger?.addEventListener('click', function () {
+            documentsInput?.click();
+        });
+
+        documentsInput?.addEventListener('change', function () {
+            const selected = Array.from(this.files || []);
+
+            if (selected.length > 8) {
+                window.alert('Solo puedes adjuntar hasta 8 documentos.');
+                this.value = '';
+                return;
+            }
+
+            for (const file of selected) {
+                if (file.size > 15 * 1024 * 1024) {
+                    window.alert('Cada documento debe pesar como máximo 15 MB.');
+                    this.value = '';
+                    return;
+                }
+            }
+
+            if (documentTransfer) {
+                Array.from(this.files || []).forEach(file => {
+                    if (documentTransfer.items.length < 8) {
+                        documentTransfer.items.add(file);
+                    }
+                });
+
+                this.files = documentTransfer.files;
+            }
+
+            renderDocuments();
+        });
+
+        const form = field.closest('form');
+
+        form?.addEventListener('submit', function (event) {
+            hiddenInput.value = editor.innerHTML.trim();
+
+            const hasText = editor.innerText
+                .replace(/\u200B/g, '')
+                .replace(/\u00A0/g, ' ')
+                .trim() !== '';
+            const hasImage = editor.querySelector('img') !== null;
+            const hasDocuments = (documentsInput?.files?.length || 0) > 0;
+
+            if (!hasText && !hasImage && !hasDocuments) {
+                event.preventDefault();
+                editor.focus();
+                field.classList.add('has-error');
+                window.alert('Escribe un mensaje o adjunta un archivo.');
+                return;
+            }
+
+            field.classList.remove('has-error');
+        });
+
+        const syncEditorValue = () => {
+            hiddenInput.value = editor.innerHTML.trim();
+        };
+
+        editor.addEventListener('input', function () {
+            syncEditorValue();
+            field.classList.remove('has-error');
+        });
+
+        editor.addEventListener('blur', syncEditorValue);
+        editor.addEventListener('keyup', syncEditorValue);
+
+        form?.addEventListener('formdata', function () {
+            syncEditorValue();
+        });
+    }
+
+    document.addEventListener('submit', function (event) {
+        const form = event.target;
+
+        if (!(form instanceof HTMLFormElement)) {
+            return;
+        }
+
+        form.querySelectorAll('[data-rich-editor]').forEach(function (field) {
+            const editor = field.querySelector('.ticket-rich-editor-area');
+            const hiddenInput = field.querySelector('[data-rich-input]');
+
+            if (editor && hiddenInput) {
+                hiddenInput.value = editor.innerHTML.trim();
+            }
+        });
+    }, true);
+
+    function initializeAllRichEditors() {
+        document.querySelectorAll('[data-rich-editor]').forEach(initializeRichEditor);
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initializeAllRichEditors, { once: true });
+    } else {
+        initializeAllRichEditors();
+    }
+})();
 
 </script>
 

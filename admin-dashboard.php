@@ -11,12 +11,17 @@ if (file_exists($businessHoursHelper)) {
 
 $db = $pdo;
 
-function dashboardTableExists(PDO $db, string $tableName): bool
-{
-    $stmt = $db->prepare("SHOW TABLES LIKE :table_name");
-    $stmt->execute(['table_name' => $tableName]);
-
-    return (bool)$stmt->fetchColumn();
+if (!function_exists('dashboardTableExists')) {
+    function dashboardTableExists(PDO $pdo, string $table): bool
+    {
+        try {
+            $stmt = $pdo->prepare("SHOW TABLES LIKE ?");
+            $stmt->execute([$table]);
+            return $stmt->rowCount() > 0;
+        } catch (Throwable $e) {
+            return false;
+        }
+    }
 }
 
 function dashboardColumnExists(PDO $db, string $tableName, string $columnName): bool

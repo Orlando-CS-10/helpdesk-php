@@ -1,15 +1,16 @@
-<!doctype html>
-
 <?php
 require_once __DIR__ . '/../../helpers/session.php';
 
 $notifications = [];
 $unreadNotifications = 0;
+$currentUser = null;
+$currentRole = null;
 
 if (isLoggedIn()) {
     require_once __DIR__ . '/../../config/database.php';
 
     $currentUser = user();
+    $currentRole = strtoupper((string) ($currentUser['role'] ?? ''));
 
     $sqlNotifications = "SELECT id, title, message, type, is_read, related_ticket_id, created_at
                          FROM notifications
@@ -19,7 +20,7 @@ if (isLoggedIn()) {
 
     $stmtNotifications = $pdo->prepare($sqlNotifications);
     $stmtNotifications->execute([
-        'user_id' => $currentUser['id']
+        'user_id' => (int) $currentUser['id'],
     ]);
 
     $notifications = $stmtNotifications->fetchAll(PDO::FETCH_ASSOC);
@@ -31,81 +32,112 @@ if (isLoggedIn()) {
 
     $stmtUnread = $pdo->prepare($sqlUnread);
     $stmtUnread->execute([
-        'user_id' => $currentUser['id']
+        'user_id' => (int) $currentUser['id'],
     ]);
 
-    $unreadNotifications = (int)($stmtUnread->fetch(PDO::FETCH_ASSOC)['total'] ?? 0);
+    $unreadNotifications = (int) ($stmtUnread->fetch(PDO::FETCH_ASSOC)['total'] ?? 0);
 }
+
+/*
+ * Se usan tres paquetes de estilos independientes:
+ *
+ * auth-app.css   -> inicio de sesión.
+ * client-app.css -> portada y vistas del cliente.
+ * app.css        -> panel administrativo y técnico.
+ *
+ * Las vistas pueden forzar uno de los diseños definiendo antes de
+ * incluir este archivo: $useAuthLayout o $useClientLayout.
+ */
+$useAuthLayout = (bool) ($useAuthLayout ?? false);
+$useClientLayout = (bool) ($useClientLayout ?? false);
+
+$currentScript = basename((string) parse_url($_SERVER['SCRIPT_NAME'] ?? '', PHP_URL_PATH));
+$publicLayoutScripts = ['home.php', 'knowledge-article.php'];
+$authLayoutScripts = ['login.php'];
+
+if ($useAuthLayout || in_array($currentScript, $authLayoutScripts, true)) {
+    $cssEntryFile = 'auth-app.css';
+} elseif ($useClientLayout || in_array($currentScript, $publicLayoutScripts, true)) {
+    /*
+     * La portada y los artículos siempre usan el diseño público,
+     * incluso cuando los abre un administrador o un técnico.
+     */
+    $cssEntryFile = 'client-app.css';
+} elseif (!isLoggedIn()) {
+    $cssEntryFile = 'auth-app.css';
+} elseif ($currentRole === 'CLIENT') {
+    $cssEntryFile = 'client-app.css';
+} else {
+    $cssEntryFile = 'app.css';
+}
+
+$cssBaseUrl = '/helpdesk-php/public/assets/css/';
+$projectRoot = dirname(__DIR__, 3);
+$cssEntryPath = $projectRoot . '/public/assets/css/' . $cssEntryFile;
+$cssVersion = file_exists($cssEntryPath) ? filemtime($cssEntryPath) : time();
 ?>
-
+<!doctype html>
 <html lang="es">
-
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title><?= $title ?? 'Mesa de Ayuda'; ?></title>
-    <link rel="stylesheet" href="/helpdesk-php/public/assets/css/base.css?v=1">
-    <link rel="stylesheet" href="/helpdesk-php/public/assets/css/layout.css?v=1">
-    <link rel="stylesheet" href="/helpdesk-php/public/assets/css/admin.css?v=1">
-    <link rel="stylesheet" href="/helpdesk-php/public/assets/css/tables.css?v=1">
-    <link rel="stylesheet" href="/helpdesk-php/public/assets/css/tickets.css?v=1">
-    <link rel="stylesheet" href="/helpdesk-php/public/assets/css/notifications.css?v=1">
-    <link rel="stylesheet" href="/helpdesk-php/public/assets/css/admin-dashboard.css?v=1">
-    <link rel="stylesheet" href="/helpdesk-php/public/assets/css/responsive.css?v=1">
-    <link rel="stylesheet" href="/helpdesk-php/public/assets/css/create-user-modal.css?v=1">
-    <link rel="stylesheet" href="/helpdesk-php/public/assets/css/forms.css?v=1">
+    <title><?= htmlspecialchars($title ?? 'Mesa de Ayuda', ENT_QUOTES, 'UTF-8') ?></title>
+
+    <link rel="stylesheet"
+          href="<?= htmlspecialchars($cssBaseUrl . $cssEntryFile, ENT_QUOTES, 'UTF-8') ?>?v=<?= (int) $cssVersion ?>">
+
     <script src="https://kit.fontawesome.com/b44fd2b2de.js" crossorigin="anonymous"></script>
 </head>
-
 <body>
-    <?php
-    $toastMessage = '';
-    $toastType = '';
+<?php
+$toastMessage = '';
+$toastType = '';
 
-    if (!empty($_SESSION['ticket_success'])) {
-        $toastMessage = $_SESSION['ticket_success'];
-        $toastType = 'success';
-        unset($_SESSION['ticket_success']);
-    } elseif (!empty($_SESSION['ticket_error'])) {
-        $toastMessage = $_SESSION['ticket_error'];
-        $toastType = 'error';
-        unset($_SESSION['ticket_error']);
-    } elseif (!empty($_SESSION['settings_success'])) {
-        $toastMessage = $_SESSION['settings_success'];
-        $toastType = 'success';
-        unset($_SESSION['settings_success']);
-    } elseif (!empty($_SESSION['settings_error'])) {
-        $toastMessage = $_SESSION['settings_error'];
-        $toastType = 'error';
-        unset($_SESSION['settings_error']);
-    }
-    ?>
+if (!empty($_SESSION['ticket_success'])) {
+    $toastMessage = (string) $_SESSION['ticket_success'];
+    $toastType = 'success';
+    unset($_SESSION['ticket_success']);
+} elseif (!empty($_SESSION['ticket_error'])) {
+    $toastMessage = (string) $_SESSION['ticket_error'];
+    $toastType = 'error';
+    unset($_SESSION['ticket_error']);
+} elseif (!empty($_SESSION['settings_success'])) {
+    $toastMessage = (string) $_SESSION['settings_success'];
+    $toastType = 'success';
+    unset($_SESSION['settings_success']);
+} elseif (!empty($_SESSION['settings_error'])) {
+    $toastMessage = (string) $_SESSION['settings_error'];
+    $toastType = 'error';
+    unset($_SESSION['settings_error']);
+}
+?>
 
-    <?php if (!empty($toastMessage)): ?>
-        <div class="toast-container">
-            <div class="toast toast-<?= htmlspecialchars($toastType) ?>" id="appToast">
-                <div class="toast-content">
-                    <strong class="toast-title">
-                        <?= $toastType === 'success' ? 'Correcto' : 'Atención' ?>
-                    </strong>
-                    <p class="toast-message"><?= htmlspecialchars($toastMessage) ?></p>
-                </div>
-
-                <button class="toast-close" onclick="closeToast()">×</button>
+<?php if ($toastMessage !== ''): ?>
+    <div class="toast-container">
+        <div class="toast toast-<?= htmlspecialchars($toastType, ENT_QUOTES, 'UTF-8') ?>" id="appToast">
+            <div class="toast-content">
+                <strong class="toast-title">
+                    <?= $toastType === 'success' ? 'Correcto' : 'Atención' ?>
+                </strong>
+                <p class="toast-message"><?= htmlspecialchars($toastMessage, ENT_QUOTES, 'UTF-8') ?></p>
             </div>
-        </div>
 
-        <script>
-            function closeToast() {
-                const toast = document.getElementById('appToast');
-                if (toast) {
-                    toast.classList.add('toast-hide');
-                    setTimeout(() => toast.remove(), 300);
-                }
+            <button type="button" class="toast-close" onclick="closeToast()" aria-label="Cerrar notificación">×</button>
+        </div>
+    </div>
+
+    <script>
+        function closeToast() {
+            const toast = document.getElementById('appToast');
+
+            if (!toast) {
+                return;
             }
 
-            setTimeout(() => {
-                closeToast();
-            }, 4000);
-        </script>
-    <?php endif; ?>
+            toast.classList.add('toast-hide');
+            window.setTimeout(() => toast.remove(), 300);
+        }
+
+        window.setTimeout(closeToast, 4000);
+    </script>
+<?php endif; ?>

@@ -60,6 +60,316 @@ function dashboardStatusLabel(?string $status): string
     ][$status] ?? ucfirst(strtolower(str_replace('_', ' ', $status)));
 }
 
+function dashboardPercent(int $value, int $total): string
+{
+    if ($total <= 0) {
+        return '0%';
+    }
+
+    return number_format(($value / $total) * 100, 1) . '%';
+}
+
+
+/*
+|--------------------------------------------------------------------------
+| Dashboard con SLA según contrato de empresa
+|--------------------------------------------------------------------------
+| Esta sección recalcula los indicadores principales usando el contrato
+| SLA de client_companies:
+| - 24_7: tiempo calendario real.
+| - 8_5: solo horario laboral definido en business_hours.php.
+|
+| Si ocurre algún error, se mantienen los valores recibidos previamente.
+*/
+if (!function_exists('dashboardTableExists')) {
+    function dashboardTableExists(PDO $pdo, string $table): bool
+    {
+        try {
+            $stmt = $pdo->prepare("SHOW TABLES LIKE ?");
+            $stmt->execute([$table]);
+            return $stmt->rowCount() > 0;
+        } catch (Throwable $e) {
+            return false;
+        }
+    }
+}
+
+function dashboardHoursToClock(float|int|string|null $hours): string
+{
+    if (function_exists('formatDecimalHoursToClock')) {
+        return formatDecimalHoursToClock($hours);
+    }
+
+    if ($hours === null || $hours === '' || !is_numeric($hours)) {
+        return '00:00:00';
+    }
+
+    $totalSeconds = (int)round(((float)$hours) * 3600);
+    $h = intdiv($totalSeconds, 3600);
+    $m = intdiv($totalSeconds % 3600, 60);
+    $sec = $totalSeconds % 60;
+
+    return sprintf('%02d:%02d:%02d', $h, $m, $sec);
+}
+
+function dashboardElapsedHoursByContract(array $ticket, ?string $startDateTime, ?string $endDateTime): float
+{
+    if (empty($startDateTime) || empty($endDateTime)) {
+        return 0;
+    }
+
+    $contractType = $ticket['company_sla_contract_type']
+        ?? $ticket['sla_contract_type']
+        ?? $ticket['contract_type']
+        ?? '8_5';
+
+    if (function_exists('calculateSlaElapsedHours')) {
+        return calculateSlaElapsedHours($startDateTime, $endDateTime, $contractType);
+    }
+
+    if (function_exists('normalizeSlaContractType') && normalizeSlaContractType($contractType) === '8_5' && function_exists('calculateBusinessHours')) {
+        return calculateBusinessHours($startDateTime, $endDateTime);
+    }
+
+    try {
+        $start = new DateTime($startDateTime, new DateTimeZone('America/Lima'));
+        $end = new DateTime($endDateTime, new DateTimeZone('America/Lima'));
+    } catch (Throwable $exception) {
+        return 0;
+    }
+
+    if ($end <= $start) {
+        return 0;
+    }
+
+    return round(($end->getTimestamp() - $start->getTimestamp()) / 3600, 2);
+}
+
+try {
+    require_once __DIR__ . '/../../config/database.php';
+    require_once __DIR__ . '/../../helpers/sla_helper.php';
+
+    if (isset($pdo) && $pdo instanceof PDO) {
+        $dashboardTicketsStmt = $pdo->query("
+            SELECT
+                t.*,
+                COALESCE(cc.sla_contract_type, requester_company.sla_contract_type, '8_5') AS company_sla_contract_type,
+                tech.name AS technician_name,
+                COALESCE(tech.tech_level, t.support_level, 1) AS technician_level
+            FROM tickets t
+            LEFT JOIN users requester ON requester.id = t.requester_id
+            LEFT JOIN client_companies requester_company ON requester_company.id = requester.company_id
+            LEFT JOIN client_companies cc ON cc.id = t.company_id
+            LEFT JOIN users tech ON tech.id = t.assigned_to
+            ORDER BY t.created_at DESC
+        ");
+
+        $dashboardTickets = $dashboardTicketsStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+        $dashboardEscalatedTicketIds = [];
+        if (dashboardTableExists($pdo, 'ticket_level_history')) {
+            $dashboardEscalatedRows = $pdo->query("SELECT DISTINCT ticket_id FROM ticket_level_history")->fetchAll(PDO::FETCH_COLUMN) ?: [];
+            $dashboardEscalatedTicketIds = array_fill_keys(array_map('intval', $dashboardEscalatedRows), true);
+        }
+
+        $statusOrder = ['ABIERTO', 'EN_PROCESO', 'RESPONDIDO', 'CERRADO'];
+        $statusCounts = array_fill_keys($statusOrder, 0);
+        $priorityCounts = [];
+        $categoryCounts = [];
+        $technicianCounts = [];
+        $levelCounts = [];
+        $levelSummaryMap = [
+            1 => ['level' => 1, 'current_total' => 0, 'active_total' => 0, 'closed_total' => 0, 'escalated_total' => 0],
+            2 => ['level' => 2, 'current_total' => 0, 'active_total' => 0, 'closed_total' => 0, 'escalated_total' => 0],
+            3 => ['level' => 3, 'current_total' => 0, 'active_total' => 0, 'closed_total' => 0, 'escalated_total' => 0],
+        ];
+
+        $technicianSummaryMap = [];
+        $techRows = $pdo->query("
+            SELECT id, name, COALESCE(tech_level, 1) AS tech_level
+            FROM users
+            WHERE role = 'TECH'
+            ORDER BY COALESCE(tech_level, 1) ASC, name ASC
+        ")->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+        foreach ($techRows as $techRow) {
+            $techId = (int)$techRow['id'];
+            $technicianSummaryMap[$techId] = [
+                'id' => $techId,
+                'name' => $techRow['name'] ?? 'Técnico',
+                'tech_level' => (int)($techRow['tech_level'] ?? 1),
+                'active_tickets' => 0,
+                'closed_tickets' => 0,
+                'escalated_tickets' => 0,
+            ];
+        }
+
+        $totalTickets = count($dashboardTickets);
+        $openTickets = 0;
+        $inProgressTickets = 0;
+        $answeredTickets = 0;
+        $closedTickets = 0;
+        $activeTickets = 0;
+        $escalatedTickets = 0;
+        $closedWithinSla = 0;
+        $closedOutSla = 0;
+
+        $ttaTotalHours = 0;
+        $ttaCount = 0;
+        $ttrTotalHours = 0;
+        $ttrCount = 0;
+
+        foreach ($dashboardTickets as $ticket) {
+            $status = strtoupper((string)($ticket['status'] ?? 'ABIERTO'));
+            $priority = strtoupper((string)($ticket['priority'] ?? 'SIN PRIORIDAD'));
+            $category = strtoupper((string)($ticket['category'] ?? 'OTROS'));
+            $ticketId = (int)($ticket['id'] ?? 0);
+            $assignedTo = isset($ticket['assigned_to']) ? (int)$ticket['assigned_to'] : 0;
+            $supportLevel = max(1, min(3, (int)($ticket['support_level'] ?? $ticket['technician_level'] ?? 1)));
+            $isClosed = $status === 'CERRADO';
+            $isEscalated = isset($dashboardEscalatedTicketIds[$ticketId]) || $supportLevel > 1;
+
+            if (!isset($statusCounts[$status])) {
+                $statusCounts[$status] = 0;
+            }
+            $statusCounts[$status]++;
+
+            $priorityCounts[$priority] = ($priorityCounts[$priority] ?? 0) + 1;
+            $categoryCounts[$category] = ($categoryCounts[$category] ?? 0) + 1;
+            $levelCounts[$supportLevel] = ($levelCounts[$supportLevel] ?? 0) + 1;
+
+            if (!isset($levelSummaryMap[$supportLevel])) {
+                $levelSummaryMap[$supportLevel] = ['level' => $supportLevel, 'current_total' => 0, 'active_total' => 0, 'closed_total' => 0, 'escalated_total' => 0];
+            }
+            $levelSummaryMap[$supportLevel]['current_total']++;
+
+            if ($status === 'ABIERTO') {
+                $openTickets++;
+            } elseif ($status === 'EN_PROCESO') {
+                $inProgressTickets++;
+            } elseif ($status === 'RESPONDIDO') {
+                $answeredTickets++;
+            } elseif ($isClosed) {
+                $closedTickets++;
+            }
+
+            if (!$isClosed) {
+                $activeTickets++;
+                $levelSummaryMap[$supportLevel]['active_total']++;
+            } else {
+                $levelSummaryMap[$supportLevel]['closed_total']++;
+            }
+
+            if ($isEscalated) {
+                $escalatedTickets++;
+                $levelSummaryMap[$supportLevel]['escalated_total']++;
+            }
+
+            if ($assignedTo > 0) {
+                $technicianName = $ticket['technician_name'] ?? 'Sin nombre';
+                $technicianCounts[$technicianName] = ($technicianCounts[$technicianName] ?? 0) + 1;
+
+                if (!isset($technicianSummaryMap[$assignedTo])) {
+                    $technicianSummaryMap[$assignedTo] = [
+                        'id' => $assignedTo,
+                        'name' => $technicianName,
+                        'tech_level' => (int)($ticket['technician_level'] ?? $supportLevel),
+                        'active_tickets' => 0,
+                        'closed_tickets' => 0,
+                        'escalated_tickets' => 0,
+                    ];
+                }
+
+                if ($isClosed) {
+                    $technicianSummaryMap[$assignedTo]['closed_tickets']++;
+                } else {
+                    $technicianSummaryMap[$assignedTo]['active_tickets']++;
+                }
+
+                if ($isEscalated) {
+                    $technicianSummaryMap[$assignedTo]['escalated_tickets']++;
+                }
+            }
+
+            if (!empty($ticket['created_at']) && !empty($ticket['first_response_at'])) {
+                $ttaTotalHours += dashboardElapsedHoursByContract($ticket, $ticket['created_at'], $ticket['first_response_at']);
+                $ttaCount++;
+            }
+
+            if ($isClosed && !empty($ticket['created_at']) && !empty($ticket['closed_at'])) {
+                $ttrHours = dashboardElapsedHoursByContract($ticket, $ticket['created_at'], $ticket['closed_at']);
+                $ttrTotalHours += $ttrHours;
+                $ttrCount++;
+
+                $slaHours = (float)($ticket['sla_hours'] ?? 0);
+                if ($slaHours > 0 && $ttrHours <= $slaHours) {
+                    $closedWithinSla++;
+                } else {
+                    $closedOutSla++;
+                }
+            }
+        }
+
+        $avgTTA = dashboardHoursToClock($ttaCount > 0 ? $ttaTotalHours / $ttaCount : 0);
+        $avgTTR = dashboardHoursToClock($ttrCount > 0 ? $ttrTotalHours / $ttrCount : 0);
+        $slaClosedTotal = $closedWithinSla + $closedOutSla;
+        $slaPercent = $slaClosedTotal > 0 ? number_format(($closedWithinSla / $slaClosedTotal) * 100, 1, '.', '') : 0;
+
+        $ticketsByStatus = [];
+        foreach ($statusCounts as $statusKey => $count) {
+            $ticketsByStatus[] = [
+                'status_label' => dashboardStatusLabel($statusKey),
+                'total' => (int)$count,
+            ];
+        }
+
+        arsort($priorityCounts);
+        $ticketsByPriority = array_map(
+            static fn($priority, $count) => ['priority' => $priority, 'total' => (int)$count],
+            array_keys($priorityCounts),
+            array_values($priorityCounts)
+        );
+
+        arsort($categoryCounts);
+        $ticketsByCategory = array_map(
+            static fn($category, $count) => ['category' => $category, 'total' => (int)$count],
+            array_keys($categoryCounts),
+            array_values($categoryCounts)
+        );
+
+        arsort($technicianCounts);
+        $ticketsByTechnician = array_map(
+            static fn($technicianName, $count) => ['technician_name' => $technicianName, 'total' => (int)$count],
+            array_keys($technicianCounts),
+            array_values($technicianCounts)
+        );
+
+        ksort($levelCounts);
+        $ticketsByLevel = array_map(
+            static fn($level, $count) => ['support_level' => (int)$level, 'total' => (int)$count],
+            array_keys($levelCounts),
+            array_values($levelCounts)
+        );
+
+        ksort($levelSummaryMap);
+        $levelSummary = array_values($levelSummaryMap);
+
+        $technicianSummary = array_values(array_filter(
+            $technicianSummaryMap,
+            static fn($row) => ((int)($row['active_tickets'] ?? 0) + (int)($row['closed_tickets'] ?? 0) + (int)($row['escalated_tickets'] ?? 0)) > 0
+        ));
+
+        usort($technicianSummary, static function ($a, $b) {
+            return [(int)($a['tech_level'] ?? 1), (string)($a['name'] ?? '')]
+                <=> [(int)($b['tech_level'] ?? 1), (string)($b['name'] ?? '')];
+        });
+
+        $recentTickets = array_slice($dashboardTickets, 0, 8);
+    }
+} catch (Throwable $dashboardException) {
+    // Se mantienen los valores recibidos para no romper la vista si alguna tabla/columna aún no existe.
+}
+
 $statusLabels = dashboardChartLabels($ticketsByStatus, 'status_label');
 $statusValues = dashboardChartValues($ticketsByStatus, 'total');
 
@@ -78,25 +388,20 @@ $levelLabels = array_map(
 );
 $levelValues = dashboardChartValues($ticketsByLevel, 'total');
 
-$slaLabels = ['Cumplido', 'No cumplido'];
+$slaLabels = ['Dentro del SLA', 'Fuera del SLA'];
 $slaValues = [(int)$closedWithinSla, (int)$closedOutSla];
 
+$lastUpdatedAt = date('d/m/Y H:i');
+$activePercent = dashboardPercent((int)$activeTickets, (int)$totalTickets);
+$closedPercent = dashboardPercent((int)$closedTickets, (int)$totalTickets);
+$answeredPercent = dashboardPercent((int)$answeredTickets, (int)$totalTickets);
 $pdfTechnicians = [];
 
 try {
     require_once __DIR__ . '/../../config/database.php';
 
     if (isset($pdo) && $pdo instanceof PDO) {
-        $pdfTechnicianStmt = $pdo->query("
-            SELECT
-                id,
-                name,
-                COALESCE(tech_level, 1) AS tech_level
-            FROM users
-            WHERE role = 'TECH'
-              AND status = 1
-            ORDER BY COALESCE(tech_level, 1) ASC, name ASC
-        " );
+        $pdfTechnicianStmt = $pdo->query("\n            SELECT\n                id,\n                name,\n                COALESCE(tech_level, 1) AS tech_level\n            FROM users\n            WHERE role = 'TECH'\n              AND status = 1\n            ORDER BY COALESCE(tech_level, 1) ASC, name ASC\n        ");
 
         $pdfTechnicians = $pdfTechnicianStmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
     }
@@ -115,19 +420,26 @@ require_once __DIR__ . '/../layouts/header.php';
 
         <?php require_once __DIR__ . '/../layouts/admin-topbar.php'; ?>
 
-        <main class="admin-content admin-dashboard-content">
+        <main class="admin-content admin-dashboard-content dashboard-v3">
 
-            <section class="admin-dashboard-export-card card">
-                <div>
-                    <span class="admin-dashboard-eyebrow">Reporte PDF</span>
-                    <h2>Exportar indicadores</h2>
-                    <p>Elige si deseas descargar el informe general de todos los técnicos o filtrar el reporte por un técnico específico.</p>
+            <section class="dashboard-v3-toolbar card">
+                <div class="dashboard-v3-toolbar-text">
+                    <span class="dashboard-v3-kicker"><i class="fa-solid fa-gauge-high"></i> Resumen operativo</span>
+                    <h2>Lectura rápida del servicio</h2>
+                    <p>Vista consolidada de atención, cumplimiento SLA y desempeño técnico. Sin duplicar datos, solo lo necesario para decidir.</p>
                 </div>
 
-                <button type="button" class="btn-primary admin-dashboard-export-btn" id="openExportPdfModal">
-                    <i class="fa-solid fa-file-pdf"></i>
-                    Exportar PDF
-                </button>
+                <div class="dashboard-v3-toolbar-actions">
+                    <div class="dashboard-v3-updated">
+                        <span>Actualizado</span>
+                        <strong><?= htmlspecialchars($lastUpdatedAt) ?></strong>
+                    </div>
+
+                    <button type="button" class="dashboard-v3-export-btn" id="openExportPdfModal">
+                        <i class="fa-solid fa-file-pdf"></i>
+                        Exportar PDF
+                    </button>
+                </div>
             </section>
 
             <div class="export-pdf-modal-backdrop" id="exportPdfModal" aria-hidden="true">
@@ -143,7 +455,7 @@ require_once __DIR__ . '/../layouts/header.php';
                             </span>
                             <div>
                                 <h3 id="exportPdfModalTitle">Exportar reporte de indicadores</h3>
-                                <p>Selecciona el alcance del PDF antes de generarlo.</p>
+                                <p>Selecciona el alcance y el periodo que deseas analizar.</p>
                             </div>
                         </div>
 
@@ -182,6 +494,83 @@ require_once __DIR__ . '/../layouts/header.php';
                             <?php endif; ?>
                         </div>
 
+                        <section class="export-period-section" aria-labelledby="exportPeriodTitle">
+                            <div class="export-period-heading">
+                                <div>
+                                    <span class="export-period-eyebrow">Periodo del reporte</span>
+                                    <strong id="exportPeriodTitle">¿Qué registros deseas incluir?</strong>
+                                </div>
+
+                                <span class="export-period-icon" aria-hidden="true">
+                                    <i class="fa-regular fa-calendar"></i>
+                                </span>
+                            </div>
+
+                            <div class="export-period-options">
+                                <label class="export-period-option active" for="exportPeriodAll">
+                                    <input
+                                        type="radio"
+                                        name="period_mode"
+                                        value="all"
+                                        id="exportPeriodAll"
+                                        checked>
+
+                                    <span>
+                                        <strong>Todos los registros</strong>
+                                        <small>Incluye toda la información disponible en el sistema.</small>
+                                    </span>
+                                </label>
+
+                                <label class="export-period-option" for="exportPeriodRange">
+                                    <input
+                                        type="radio"
+                                        name="period_mode"
+                                        value="range"
+                                        id="exportPeriodRange">
+
+                                    <span>
+                                        <strong>Entre dos fechas</strong>
+                                        <small>Analiza únicamente los tickets creados dentro del rango.</small>
+                                    </span>
+                                </label>
+                            </div>
+
+                            <div class="export-date-range" id="exportDateRange" aria-hidden="true">
+                                <div class="export-date-field">
+                                    <label for="exportDateFrom">Fecha inicial</label>
+                                    <input
+                                        type="date"
+                                        name="date_from"
+                                        id="exportDateFrom"
+                                        disabled>
+                                </div>
+
+                                <span class="export-date-separator" aria-hidden="true">
+                                    <i class="fa-solid fa-arrow-right"></i>
+                                </span>
+
+                                <div class="export-date-field">
+                                    <label for="exportDateTo">Fecha final</label>
+                                    <input
+                                        type="date"
+                                        name="date_to"
+                                        id="exportDateTo"
+                                        disabled>
+                                </div>
+
+                                <small class="export-date-help">
+                                    Se incluirán los tickets desde las 00:00 de la fecha inicial
+                                    hasta las 23:59 de la fecha final.
+                                </small>
+
+                                <div
+                                    class="export-date-error"
+                                    id="exportDateError"
+                                    role="alert"
+                                    hidden></div>
+                            </div>
+                        </section>
+
                         <div class="export-pdf-modal-actions">
                             <button type="button" class="export-pdf-cancel-btn" data-export-pdf-close>Cancelar</button>
                             <button type="submit" class="export-pdf-generate-btn">
@@ -193,163 +582,179 @@ require_once __DIR__ . '/../layouts/header.php';
                 </div>
             </div>
 
-            <section class="admin-dashboard-hero card">
-                <div>
-                    <span class="admin-dashboard-eyebrow">Panel gerencial</span>
-                    <h2>Resumen operativo del mantenimiento correctivo</h2>
-                    <p>
-                        Monitorea la carga de tickets, el cumplimiento SLA, los tiempos TTA/TTR y el comportamiento por nivel técnico.
-                    </p>
-                </div>
-
-                <div class="admin-dashboard-hero-metrics">
+            <section class="dashboard-v3-focus-grid">
+                <article class="dashboard-v3-focus-card focus-active">
+                    <span class="dashboard-v3-focus-icon"><i class="fa-solid fa-headset"></i></span>
                     <div>
+                        <span class="dashboard-v3-label">Tickets activos</span>
                         <strong><?= (int)$activeTickets ?></strong>
-                        <span>Tickets activos</span>
+                        <small><?= htmlspecialchars($activePercent) ?> del total registrado</small>
                     </div>
+                </article>
+
+                <article class="dashboard-v3-focus-card focus-sla">
+                    <span class="dashboard-v3-focus-icon"><i class="fa-solid fa-shield-halved"></i></span>
                     <div>
-                        <strong><?= (int)$escalatedTickets ?></strong>
-                        <span>Escalados</span>
-                    </div>
-                    <div>
+                        <span class="dashboard-v3-label">SLA cumplido</span>
                         <strong><?= htmlspecialchars((string)$slaPercent) ?>%</strong>
-                        <span>SLA cumplido</span>
+                        <small><?= (int)$closedWithinSla ?> dentro / <?= (int)$closedOutSla ?> fuera</small>
                     </div>
+                </article>
+
+                <article class="dashboard-v3-focus-card focus-tta">
+                    <span class="dashboard-v3-focus-icon"><i class="fa-solid fa-stopwatch"></i></span>
+                    <div>
+                        <span class="dashboard-v3-label">TTA promedio</span>
+                        <strong><?= htmlspecialchars((string)$avgTTA) ?></strong>
+                        <small>Tiempo hasta primera atención</small>
+                    </div>
+                </article>
+
+                <article class="dashboard-v3-focus-card focus-ttr">
+                    <span class="dashboard-v3-focus-icon"><i class="fa-solid fa-screwdriver-wrench"></i></span>
+                    <div>
+                        <span class="dashboard-v3-label">TTR promedio</span>
+                        <strong><?= htmlspecialchars((string)$avgTTR) ?></strong>
+                        <small>Tiempo promedio de resolución</small>
+                    </div>
+                </article>
+            </section>
+
+            <section class="dashboard-v3-status-strip card">
+                <div class="dashboard-v3-status-item">
+                    <span>Abiertos</span>
+                    <strong><?= (int)$openTickets ?></strong>
+                    <small>Sin cierre</small>
+                </div>
+
+                <div class="dashboard-v3-status-item">
+                    <span>En proceso</span>
+                    <strong><?= (int)$inProgressTickets ?></strong>
+                    <small>Gestionados ahora</small>
+                </div>
+
+                <div class="dashboard-v3-status-item">
+                    <span>Respondidos</span>
+                    <strong><?= (int)$answeredTickets ?></strong>
+                    <small><?= htmlspecialchars($answeredPercent) ?> del total</small>
+                </div>
+
+                <div class="dashboard-v3-status-item">
+                    <span>Cerrados</span>
+                    <strong><?= (int)$closedTickets ?></strong>
+                    <small><?= htmlspecialchars($closedPercent) ?> del total</small>
+                </div>
+
+                <div class="dashboard-v3-status-item muted">
+                    <span>Escalados</span>
+                    <strong><?= (int)$escalatedTickets ?></strong>
+                    <small>Cambio de nivel técnico</small>
                 </div>
             </section>
 
-            <section class="admin-kpi-grid admin-kpi-grid-8">
-                <div class="admin-kpi-card">
-                    <span class="admin-kpi-label">Total tickets</span>
-                    <strong class="admin-kpi-value"><?= (int)$totalTickets ?></strong>
-                    <p>Incidencias registradas en el sistema.</p>
+            <div class="dashboard-v3-section-title">
+                <span>01</span>
+                <div>
+                    <h3>Flujo de atención</h3>
+                    <p>Estado actual de los tickets y lectura del cumplimiento SLA.</p>
                 </div>
+            </div>
 
-                <div class="admin-kpi-card">
-                    <span class="admin-kpi-label">Abiertos</span>
-                    <strong class="admin-kpi-value"><?= (int)$openTickets ?></strong>
-                    <p>Tickets aún sin atención final.</p>
-                </div>
-
-                <div class="admin-kpi-card">
-                    <span class="admin-kpi-label">En proceso</span>
-                    <strong class="admin-kpi-value"><?= (int)$inProgressTickets ?></strong>
-                    <p>Casos actualmente gestionados.</p>
-                </div>
-
-                <div class="admin-kpi-card">
-                    <span class="admin-kpi-label">Cerrados</span>
-                    <strong class="admin-kpi-value"><?= (int)$closedTickets ?></strong>
-                    <p>Incidencias finalizadas.</p>
-                </div>
-
-                <div class="admin-kpi-card">
-                    <span class="admin-kpi-label">TTA promedio</span>
-                    <strong class="admin-kpi-value admin-kpi-time"><?= htmlspecialchars((string)$avgTTA) ?></strong>
-                    <p>Primera atención en horario laboral.</p>
-                </div>
-
-                <div class="admin-kpi-card">
-                    <span class="admin-kpi-label">TTR promedio</span>
-                    <strong class="admin-kpi-value admin-kpi-time"><?= htmlspecialchars((string)$avgTTR) ?></strong>
-                    <p>Resolución en horario laboral.</p>
-                </div>
-
-                <div class="admin-kpi-card">
-                    <span class="admin-kpi-label">% SLA cumplido</span>
-                    <strong class="admin-kpi-value"><?= htmlspecialchars((string)$slaPercent) ?>%</strong>
-                    <p>Tickets cerrados dentro del objetivo.</p>
-                </div>
-
-                <div class="admin-kpi-card">
-                    <span class="admin-kpi-label">Escalados</span>
-                    <strong class="admin-kpi-value"><?= (int)$escalatedTickets ?></strong>
-                    <p>Tickets que pasaron de nivel técnico.</p>
-                </div>
-            </section>
-
-            <section class="admin-panel-grid">
-                <div class="card admin-panel-card">
-                    <div class="admin-panel-card-header">
-                        <h2>Tickets por estado</h2>
-                        <p>Distribución actual del flujo de atención.</p>
+            <section class="dashboard-v3-grid dashboard-v3-grid-2">
+                <article class="dashboard-v3-panel card">
+                    <div class="dashboard-v3-panel-header">
+                        <div>
+                            <h3>Tickets por estado</h3>
+                            <p>Distribución actual del flujo operativo.</p>
+                        </div>
                     </div>
-
-                    <div class="admin-chart-box">
+                    <div class="dashboard-v3-chart-box">
                         <canvas id="ticketsStatusChart"></canvas>
                     </div>
-                </div>
+                </article>
 
-                <div class="card admin-panel-card">
-                    <div class="admin-panel-card-header">
-                        <h2>Cumplimiento SLA</h2>
-                        <p>Tickets cerrados dentro y fuera del tiempo objetivo.</p>
+                <article class="dashboard-v3-panel card">
+                    <div class="dashboard-v3-panel-header compact">
+                        <div>
+                            <h3>Detalle SLA</h3>
+                            <p>Resultado de tickets cerrados frente al objetivo.</p>
+                        </div>
+                        <strong class="dashboard-v3-panel-number"><?= htmlspecialchars((string)$slaPercent) ?>%</strong>
                     </div>
 
-                    <div class="admin-chart-box">
-                        <canvas id="slaChart"></canvas>
+                    <div class="dashboard-v3-sla-layout">
+                        <div class="dashboard-v3-chart-box donut">
+                            <canvas id="slaChart"></canvas>
+                        </div>
+
+                        <div class="dashboard-v3-sla-stats">
+                            <div>
+                                <span>Dentro del SLA</span>
+                                <strong><?= (int)$closedWithinSla ?></strong>
+                            </div>
+                            <div>
+                                <span>Fuera del SLA</span>
+                                <strong><?= (int)$closedOutSla ?></strong>
+                            </div>
+                        </div>
                     </div>
-                </div>
+                </article>
             </section>
 
-            <section class="admin-panel-grid">
-                <div class="card admin-panel-card">
-                    <div class="admin-panel-card-header">
-                        <h2>Prioridad de incidencias</h2>
-                        <p>Permite reconocer la urgencia operativa predominante.</p>
-                    </div>
+            <div class="dashboard-v3-section-title">
+                <span>02</span>
+                <div>
+                    <h3>Tipo de incidencias</h3>
+                    <p>Prioridades y categorías que concentran la atención del equipo.</p>
+                </div>
+            </div>
 
-                    <div class="admin-chart-box">
+            <section class="dashboard-v3-grid dashboard-v3-grid-2">
+                <article class="dashboard-v3-panel card">
+                    <div class="dashboard-v3-panel-header">
+                        <div>
+                            <h3>Prioridad de incidencias</h3>
+                            <p>Urgencia operativa predominante.</p>
+                        </div>
+                    </div>
+                    <div class="dashboard-v3-chart-box">
                         <canvas id="priorityChart"></canvas>
                     </div>
-                </div>
+                </article>
 
-                <div class="card admin-panel-card">
-                    <div class="admin-panel-card-header">
-                        <h2>Categorías más frecuentes</h2>
-                        <p>Ayuda a identificar puntos críticos del soporte técnico.</p>
+                <article class="dashboard-v3-panel card">
+                    <div class="dashboard-v3-panel-header">
+                        <div>
+                            <h3>Categorías frecuentes</h3>
+                            <p>Puntos críticos detectados por tipo de soporte.</p>
+                        </div>
                     </div>
-
-                    <div class="admin-chart-box">
+                    <div class="dashboard-v3-chart-box">
                         <canvas id="categoryChart"></canvas>
                     </div>
-                </div>
+                </article>
             </section>
 
-            <section class="admin-panel-grid">
-                <div class="card admin-panel-card">
-                    <div class="admin-panel-card-header">
-                        <h2>Tickets por nivel técnico</h2>
-                        <p>Seguimiento de la atención por nivel de soporte.</p>
-                    </div>
-
-                    <div class="admin-chart-box">
-                        <canvas id="levelChart"></canvas>
-                    </div>
+            <div class="dashboard-v3-section-title">
+                <span>03</span>
+                <div>
+                    <h3>Carga técnica</h3>
+                    <p>Distribución de tickets asignados, cerrados y escalados por responsable.</p>
                 </div>
+            </div>
 
-                <div class="card admin-panel-card">
-                    <div class="admin-panel-card-header">
-                        <h2>Carga por técnico</h2>
-                        <p>Distribución de tickets asignados al equipo.</p>
-                    </div>
-
-                    <div class="admin-chart-box">
-                        <canvas id="technicianChart"></canvas>
-                    </div>
-                </div>
-            </section>
-
-            <section class="admin-panel-grid admin-panel-grid-wide">
-                <div class="card admin-panel-card">
-                    <div class="admin-panel-card-header">
-                        <h2>Resumen por técnico</h2>
-                        <p>Carga activa, tickets cerrados y casos escalados por responsable.</p>
+            <section class="dashboard-v3-grid dashboard-v3-team-grid">
+                <article class="dashboard-v3-panel card dashboard-v3-team-table-card">
+                    <div class="dashboard-v3-panel-header">
+                        <div>
+                            <h3>Resumen por técnico</h3>
+                            <p>Carga activa, cierres y escalamiento por responsable.</p>
+                        </div>
                     </div>
 
                     <?php if (!empty($technicianSummary)): ?>
                         <div class="tickets-table-wrapper">
-                            <table class="tickets-table admin-dashboard-table">
+                            <table class="tickets-table admin-dashboard-table dashboard-v3-table">
                                 <thead>
                                     <tr>
                                         <th>Técnico</th>
@@ -362,7 +767,9 @@ require_once __DIR__ . '/../layouts/header.php';
                                 <tbody>
                                     <?php foreach ($technicianSummary as $technician): ?>
                                         <tr>
-                                            <td><?= htmlspecialchars($technician['name'] ?? 'Sin nombre') ?></td>
+                                            <td>
+                                                <strong><?= htmlspecialchars($technician['name'] ?? 'Sin nombre') ?></strong>
+                                            </td>
                                             <td><span class="metric-pill neutral-pill">N<?= (int)($technician['tech_level'] ?? 1) ?></span></td>
                                             <td><?= (int)($technician['active_tickets'] ?? 0) ?></td>
                                             <td><?= (int)($technician['closed_tickets'] ?? 0) ?></td>
@@ -378,50 +785,57 @@ require_once __DIR__ . '/../layouts/header.php';
                             <p>Cuando existan técnicos activos, aparecerá el resumen de carga laboral.</p>
                         </div>
                     <?php endif; ?>
-                </div>
+                </article>
 
-                <div class="card admin-panel-card">
-                    <div class="admin-panel-card-header">
-                        <h2>Resumen por nivel</h2>
-                        <p>Vista rápida del comportamiento por nivel técnico.</p>
+                <article class="dashboard-v3-panel card">
+                    <div class="dashboard-v3-panel-header">
+                        <div>
+                            <h3>Carga por técnico</h3>
+                            <p>Tickets asignados actualmente al equipo.</p>
+                        </div>
+                    </div>
+                    <div class="dashboard-v3-chart-box compact-chart">
+                        <canvas id="technicianChart"></canvas>
+                    </div>
+                </article>
+
+                <article class="dashboard-v3-panel card">
+                    <div class="dashboard-v3-panel-header">
+                        <div>
+                            <h3>Resumen por nivel</h3>
+                            <p>Lectura rápida por nivel de soporte.</p>
+                        </div>
                     </div>
 
-                    <div class="admin-level-summary">
+                    <div class="dashboard-v3-level-grid">
                         <?php foreach ($levelSummary as $level): ?>
-                            <div class="admin-level-card">
+                            <div class="dashboard-v3-level-card">
                                 <span>Nivel <?= (int)$level['level'] ?></span>
                                 <strong><?= (int)$level['current_total'] ?></strong>
-                                <small>Actuales</small>
-
-                                <div class="admin-level-meta">
-                                    <div>
-                                        <b><?= (int)$level['active_total'] ?></b>
-                                        <em>Activos</em>
-                                    </div>
-                                    <div>
-                                        <b><?= (int)$level['closed_total'] ?></b>
-                                        <em>Cerrados</em>
-                                    </div>
-                                    <div>
-                                        <b><?= (int)$level['escalated_total'] ?></b>
-                                        <em>Escalados</em>
-                                    </div>
+                                <small>actuales</small>
+                                <div>
+                                    <em><?= (int)$level['active_total'] ?> activos</em>
+                                    <em><?= (int)$level['closed_total'] ?> cerrados</em>
+                                    <em><?= (int)$level['escalated_total'] ?> escalados</em>
                                 </div>
                             </div>
                         <?php endforeach; ?>
                     </div>
-                </div>
+                </article>
             </section>
 
-            <section class="card admin-panel-card">
-                <div class="admin-panel-card-header">
-                    <h2>Últimos tickets registrados</h2>
-                    <p>Seguimiento rápido de las incidencias más recientes.</p>
+            <div class="dashboard-v3-section-title">
+                <span>04</span>
+                <div>
+                    <h3>Últimos registros</h3>
+                    <p>Incidencias recientes para seguimiento operativo inmediato.</p>
                 </div>
+            </div>
 
+            <section class="card dashboard-v3-panel dashboard-v3-recent-card">
                 <?php if (!empty($recentTickets)): ?>
                     <div class="tickets-table-wrapper">
-                        <table class="tickets-table admin-dashboard-table">
+                        <table class="tickets-table admin-dashboard-table dashboard-v3-table dashboard-v3-recent-table">
                             <thead>
                                 <tr>
                                     <th>Ticket</th>
@@ -467,12 +881,13 @@ require_once __DIR__ . '/../layouts/header.php';
     const dashboardPalette = {
         green: '#0f3d2e',
         greenSoft: '#1f7a5a',
+        greenLight: '#dff3e8',
         orange: '#ff7a00',
         orangeSoft: '#ffb36b',
-        slate: '#334155',
+        amber: '#d97706',
+        slate: '#475569',
         muted: '#94a3b8',
-        blue: '#2563eb',
-        red: '#dc2626'
+        line: '#e7edf4'
     };
 
     const statusLabels = <?= json_encode($statusLabels, JSON_UNESCAPED_UNICODE) ?>;
@@ -493,6 +908,16 @@ require_once __DIR__ . '/../layouts/header.php';
     const levelLabels = <?= json_encode($levelLabels, JSON_UNESCAPED_UNICODE) ?>;
     const levelValues = <?= json_encode($levelValues, JSON_UNESCAPED_UNICODE) ?>;
 
+    const dashboardColors = [
+        dashboardPalette.greenSoft,
+        dashboardPalette.orange,
+        dashboardPalette.green,
+        dashboardPalette.amber,
+        dashboardPalette.slate,
+        '#6b8f71',
+        '#a16207'
+    ];
+
     const chartDefaultOptions = {
         responsive: true,
         maintainAspectRatio: false,
@@ -504,8 +929,34 @@ require_once __DIR__ . '/../layouts/header.php';
             legend: {
                 position: 'bottom',
                 labels: {
-                    boxWidth: 12,
-                    usePointStyle: true
+                    boxWidth: 10,
+                    usePointStyle: true,
+                    color: dashboardPalette.slate,
+                    font: {
+                        size: 11,
+                        weight: '700'
+                    }
+                }
+            }
+        },
+        scales: {
+            x: {
+                grid: {
+                    color: 'rgba(148, 163, 184, 0.18)'
+                },
+                ticks: {
+                    color: dashboardPalette.slate,
+                    precision: 0
+                }
+            },
+            y: {
+                beginAtZero: true,
+                grid: {
+                    color: 'rgba(148, 163, 184, 0.18)'
+                },
+                ticks: {
+                    color: dashboardPalette.slate,
+                    precision: 0
                 }
             }
         }
@@ -525,9 +976,9 @@ require_once __DIR__ . '/../layouts/header.php';
                 datasets: [{
                     label,
                     data: values,
-                    backgroundColor: dashboardPalette.greenSoft,
-                    borderRadius: 8,
-                    maxBarThickness: 38
+                    backgroundColor: labels.map((_, index) => dashboardColors[index % dashboardColors.length]),
+                    borderRadius: 10,
+                    maxBarThickness: 34
                 }]
             },
             options: {
@@ -536,19 +987,6 @@ require_once __DIR__ . '/../layouts/header.php';
                 plugins: {
                     legend: {
                         display: false
-                    }
-                },
-                scales: {
-                    y: {
-                        beginAtZero: true,
-                        ticks: {
-                            precision: 0
-                        }
-                    },
-                    x: {
-                        ticks: {
-                            precision: 0
-                        }
                     }
                 }
             }
@@ -570,13 +1008,29 @@ require_once __DIR__ . '/../layouts/header.php';
                 labels: slaLabels,
                 datasets: [{
                     data: slaValues,
-                    backgroundColor: [dashboardPalette.greenSoft, dashboardPalette.red],
+                    backgroundColor: [dashboardPalette.greenSoft, dashboardPalette.orange],
                     borderWidth: 0
                 }]
             },
             options: {
                 ...chartDefaultOptions,
-                cutout: '68%'
+                cutout: '70%',
+                plugins: {
+                    ...chartDefaultOptions.plugins,
+                    legend: {
+                        display: true,
+                        position: 'bottom',
+                        labels: {
+                            boxWidth: 10,
+                            usePointStyle: true,
+                            color: dashboardPalette.slate,
+                            font: {
+                                size: 11,
+                                weight: '700'
+                            }
+                        }
+                    }
+                }
             }
         });
     }
@@ -593,11 +1047,67 @@ require_once __DIR__ . '/../layouts/header.php';
         const technicianSelect = document.getElementById('exportTechnicianId');
         const optionCards = document.querySelectorAll('.export-pdf-option');
 
+        const periodInputs = document.querySelectorAll('input[name="period_mode"]');
+        const periodCards = document.querySelectorAll('.export-period-option');
+        const dateRange = document.getElementById('exportDateRange');
+        const dateFromInput = document.getElementById('exportDateFrom');
+        const dateToInput = document.getElementById('exportDateTo');
+        const dateError = document.getElementById('exportDateError');
+
         if (!openButton || !modal || !form) {
             return;
         }
 
+        const formatDateForInput = (date) => {
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+
+            return `${year}-${month}-${day}`;
+        };
+
+        const setDefaultDateRange = () => {
+            if (!dateFromInput || !dateToInput) {
+                return;
+            }
+
+            const today = new Date();
+            const firstDayOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+            const todayValue = formatDateForInput(today);
+
+            dateFromInput.max = todayValue;
+            dateToInput.max = todayValue;
+
+            if (dateFromInput.value === '') {
+                dateFromInput.value = formatDateForInput(firstDayOfMonth);
+            }
+
+            if (dateToInput.value === '') {
+                dateToInput.value = todayValue;
+            }
+        };
+
+        const clearDateError = () => {
+            if (dateError) {
+                dateError.hidden = true;
+                dateError.textContent = '';
+            }
+
+            dateFromInput?.classList.remove('has-error');
+            dateToInput?.classList.remove('has-error');
+        };
+
+        const showDateError = (message) => {
+            if (!dateError) {
+                return;
+            }
+
+            dateError.hidden = false;
+            dateError.textContent = message;
+        };
+
         const openModal = () => {
+            setDefaultDateRange();
             modal.classList.add('show');
             modal.setAttribute('aria-hidden', 'false');
             document.body.classList.add('modal-open');
@@ -630,6 +1140,30 @@ require_once __DIR__ . '/../layouts/header.php';
             });
         };
 
+        const updatePeriodState = () => {
+            const selectedPeriod = document.querySelector('input[name="period_mode"]:checked')?.value || 'all';
+            const isRange = selectedPeriod === 'range';
+
+            dateRange?.classList.toggle('show', isRange);
+            dateRange?.setAttribute('aria-hidden', isRange ? 'false' : 'true');
+
+            if (dateFromInput && dateToInput) {
+                dateFromInput.disabled = !isRange;
+                dateToInput.disabled = !isRange;
+
+                if (isRange) {
+                    setDefaultDateRange();
+                }
+            }
+
+            periodCards.forEach((card) => {
+                const input = card.querySelector('input[name="period_mode"]');
+                card.classList.toggle('active', input?.checked === true);
+            });
+
+            clearDateError();
+        };
+
         openButton.addEventListener('click', openModal);
 
         closeButtons.forEach((button) => {
@@ -652,6 +1186,10 @@ require_once __DIR__ . '/../layouts/header.php';
             input.addEventListener('change', updateScopeState);
         });
 
+        periodInputs.forEach((input) => {
+            input.addEventListener('change', updatePeriodState);
+        });
+
         form.addEventListener('submit', (event) => {
             const selectedScope = document.querySelector('input[name="scope"]:checked')?.value || 'all';
 
@@ -662,6 +1200,40 @@ require_once __DIR__ . '/../layouts/header.php';
                 return;
             }
 
+            const selectedPeriod = document.querySelector('input[name="period_mode"]:checked')?.value || 'all';
+
+            if (selectedPeriod === 'range') {
+                clearDateError();
+
+                const dateFrom = dateFromInput?.value || '';
+                const dateTo = dateToInput?.value || '';
+
+                if (dateFrom === '' || dateTo === '') {
+                    event.preventDefault();
+
+                    if (dateFrom === '') {
+                        dateFromInput?.classList.add('has-error');
+                    }
+
+                    if (dateTo === '') {
+                        dateToInput?.classList.add('has-error');
+                    }
+
+                    showDateError('Selecciona la fecha inicial y la fecha final.');
+                    (dateFrom === '' ? dateFromInput : dateToInput)?.focus();
+                    return;
+                }
+
+                if (dateFrom > dateTo) {
+                    event.preventDefault();
+                    dateFromInput?.classList.add('has-error');
+                    dateToInput?.classList.add('has-error');
+                    showDateError('La fecha inicial no puede ser posterior a la fecha final.');
+                    dateFromInput?.focus();
+                    return;
+                }
+            }
+
             closeModal();
         });
 
@@ -669,7 +1241,12 @@ require_once __DIR__ . '/../layouts/header.php';
             technicianSelect.classList.remove('has-error');
         });
 
+        [dateFromInput, dateToInput].forEach((input) => {
+            input?.addEventListener('change', clearDateError);
+        });
+
         updateScopeState();
+        updatePeriodState();
     });
 </script>
 

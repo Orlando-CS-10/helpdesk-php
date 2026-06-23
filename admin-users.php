@@ -13,40 +13,157 @@ if (!in_array($currentRole, $managerRoles, true)) {
     exit;
 }
 
+function usersPageTableExists(PDO $pdo, string $table): bool
+{
+    try {
+        $stmt = $pdo->prepare("SHOW TABLES LIKE :table_name");
+        $stmt->execute(['table_name' => $table]);
+        return (bool) $stmt->fetch(PDO::FETCH_NUM);
+    } catch (Throwable $e) {
+        return false;
+    }
+}
+
+function usersPageColumnExists(PDO $pdo, string $table, string $column): bool
+{
+    try {
+        $stmt = $pdo->prepare("SHOW COLUMNS FROM `$table` LIKE :column");
+        $stmt->execute(['column' => $column]);
+        return (bool) $stmt->fetch(PDO::FETCH_ASSOC);
+    } catch (Throwable $e) {
+        return false;
+    }
+}
+
 $role = trim($_GET['role'] ?? '');
 $search = trim($_GET['search'] ?? '');
+$status = trim($_GET['status'] ?? '');
+$companyId = trim($_GET['company_id'] ?? '');
 
 $allowedRoles = ['CLIENT', 'TECH', 'ADMIN'];
+$allowedStatuses = ['1', '0'];
 $createAllowedRoles = $currentRole === 'ADMIN' ? ['CLIENT', 'TECH', 'ADMIN'] : ['CLIENT'];
 $canCreateUsers = true;
 $isTechManager = $currentRole === 'TECH';
 
+$hasClientCompanies = usersPageTableExists($pdo, 'client_companies');
+$hasCompanyIdColumn = usersPageColumnExists($pdo, 'users', 'company_id');
+$hasCanViewCompanyTicketsColumn = usersPageColumnExists($pdo, 'users', 'can_view_company_tickets');
+$hasTechLevelColumn = usersPageColumnExists($pdo, 'users', 'tech_level');
+$hasProfilePhotoColumn = usersPageColumnExists($pdo, 'users', 'profile_photo');
+$companyModuleReady = $hasClientCompanies && $hasCompanyIdColumn;
+
+$companyOptions = [];
+if ($hasClientCompanies) {
+    $stmtCompanies = $pdo->query("SELECT id, ruc, business_name, trade_name, sla_contract_type
+                                  FROM client_companies
+                                  WHERE status = 1
+                                  ORDER BY COALESCE(NULLIF(trade_name, ''), business_name) ASC");
+    $companyOptions = $stmtCompanies->fetchAll(PDO::FETCH_ASSOC);
+}
+
+$summary = [
+    'total' => 0,
+    'clients' => 0,
+    'techs' => 0,
+    'admins' => 0,
+    'active' => 0,
+];
+
+try {
+    $summaryStmt = $pdo->query("SELECT
+        COUNT(*) AS total,
+        SUM(CASE WHEN role = 'CLIENT' THEN 1 ELSE 0 END) AS clients,
+        SUM(CASE WHEN role = 'TECH' THEN 1 ELSE 0 END) AS techs,
+        SUM(CASE WHEN role = 'ADMIN' THEN 1 ELSE 0 END) AS admins,
+        SUM(CASE WHEN status = 1 THEN 1 ELSE 0 END) AS active
+        FROM users");
+    $summaryRow = $summaryStmt->fetch(PDO::FETCH_ASSOC) ?: [];
+    foreach ($summary as $key => $value) {
+        $summary[$key] = (int)($summaryRow[$key] ?? 0);
+    }
+} catch (Throwable $e) {
+    // La vista seguirá funcionando aunque no se puedan calcular los contadores.
+}
+
+$selectCompanyColumns = $companyModuleReady
+    ? "u.company_id,
+       cc.ruc AS company_ruc,
+       cc.business_name AS company_business_name,
+       cc.trade_name AS company_trade_name,
+       cc.sla_contract_type AS sla_contract_type,"
+    : "NULL AS company_id,
+       NULL AS company_ruc,
+       NULL AS company_business_name,
+       NULL AS company_trade_name,
+       NULL AS sla_contract_type,";
+
 $sql = "SELECT
-            id,
-            name,
-            email,
-            role,
-            status,
-            phone,
-            position,
-            company,
-            created_at
-        FROM users
-        WHERE 1=1";
+            u.id,
+            u.name,
+            u.email,
+            u.role,
+            u.status,
+            u.phone,
+            u.position,
+            u.company,
+            " . ($hasProfilePhotoColumn ? "u.profile_photo" : "NULL AS profile_photo") . ",
+            " . ($hasTechLevelColumn ? "u.tech_level" : "NULL AS tech_level") . ",
+            " . ($hasCanViewCompanyTicketsColumn ? "u.can_view_company_tickets" : "0 AS can_view_company_tickets") . ",
+            u.created_at,
+            $selectCompanyColumns
+            1 AS row_marker
+        FROM users u";
+
+if ($companyModuleReady) {
+    $sql .= " LEFT JOIN client_companies cc ON cc.id = u.company_id";
+}
+
+$sql .= " WHERE 1=1";
 
 $params = [];
 
 if ($role !== '' && in_array($role, $allowedRoles, true)) {
-    $sql .= " AND role = :role";
+    $sql .= " AND u.role = :role";
     $params['role'] = $role;
 }
 
+if ($status !== '' && in_array($status, $allowedStatuses, true)) {
+    $sql .= " AND u.status = :status";
+    $params['status'] = (int)$status;
+}
+
+if ($companyModuleReady && $companyId !== '' && ctype_digit($companyId)) {
+    $sql .= " AND u.company_id = :company_id";
+    $params['company_id'] = (int)$companyId;
+}
+
 if ($search !== '') {
-    $sql .= " AND (name LIKE :search OR email LIKE :search)";
+    if ($companyModuleReady) {
+        $sql .= " AND (
+            u.name LIKE :search
+            OR u.email LIKE :search
+            OR u.company LIKE :search
+            OR u.position LIKE :search
+            OR cc.business_name LIKE :search
+            OR cc.trade_name LIKE :search
+            OR cc.ruc LIKE :search
+        )";
+    } else {
+        $sql .= " AND (
+            u.name LIKE :search
+            OR u.email LIKE :search
+            OR u.company LIKE :search
+            OR u.position LIKE :search
+        )";
+    }
     $params['search'] = '%' . $search . '%';
 }
 
-$sql .= " ORDER BY created_at DESC";
+$sql .= " ORDER BY
+            FIELD(u.role, 'ADMIN', 'TECH', 'CLIENT'),
+            u.created_at DESC,
+            u.name ASC";
 
 $stmt = $pdo->prepare($sql);
 $stmt->execute($params);
@@ -60,7 +177,7 @@ if ($canCreateUsers) {
     $roleOptionsHtml = '';
     foreach ($createAllowedRoles as $optionRole) {
         $label = [
-            'CLIENT' => 'Cliente',
+            'CLIENT' => 'Contacto cliente',
             'TECH' => 'Técnico',
             'ADMIN' => 'Administrador',
         ][$optionRole] ?? $optionRole;
@@ -68,9 +185,49 @@ if ($canCreateUsers) {
         $roleOptionsHtml .= '<option value="' . htmlspecialchars($optionRole, ENT_QUOTES, 'UTF-8') . '">' . htmlspecialchars($label, ENT_QUOTES, 'UTF-8') . '</option>';
     }
 
+    $companyOptionsHtml = '<option value="">Seleccionar empresa cliente</option>';
+    foreach ($companyOptions as $companyOption) {
+        $companyName = trim((string)($companyOption['trade_name'] ?? ''));
+        if ($companyName === '') {
+            $companyName = trim((string)($companyOption['business_name'] ?? ''));
+        }
+
+        $companyText = $companyName;
+        if (!empty($companyOption['ruc'])) {
+            $companyText .= ' - RUC ' . $companyOption['ruc'];
+        }
+
+        $companyOptionsHtml .= '<option value="' . (int)$companyOption['id'] . '">' . htmlspecialchars($companyText, ENT_QUOTES, 'UTF-8') . '</option>';
+    }
+
     $fixedRoleNotice = $isTechManager
-        ? '<p class="create-user-note">Como técnico, puedes crear únicamente usuarios clientes.</p>'
-        : '<p class="create-user-note">Como administrador, puedes crear clientes, técnicos y administradores.</p>';
+        ? '<p class="create-user-note">Como técnico, puedes crear únicamente contactos cliente.</p>'
+        : '<p class="create-user-note">Como administrador, puedes crear contactos cliente, técnicos y administradores.</p>';
+
+    $companySelectorHtml = '';
+    if ($companyModuleReady) {
+        $companySelectorHtml = '
+                <div class="create-user-field create-user-client-only create-user-full" id="createUserCompanySelectWrap">
+                    <label for="create_user_company_id">Empresa cliente</label>
+                    <select id="create_user_company_id" name="company_id">
+                        ' . $companyOptionsHtml . '
+                    </select>
+                    <small class="create-user-help">Las empresas y contratos SLA se administran desde el módulo Clientes.</small>
+                </div>
+
+                <div class="create-user-field create-user-client-only create-user-full" id="createUserCompanyScopeWrap">
+                    <label class="create-user-checkbox">
+                        <input type="checkbox" name="can_view_company_tickets" value="1">
+                        <span>Este contacto puede ver todos los tickets de su empresa.</span>
+                    </label>
+                </div>';
+    } else {
+        $companySelectorHtml = '
+                <div class="create-user-field create-user-client-only create-user-full">
+                    <label for="create_user_company">Empresa</label>
+                    <input type="text" id="create_user_company" name="company" placeholder="Opcional">
+                </div>';
+    }
 
     $createUserWidget = '
 <link rel="stylesheet" href="/helpdesk-php/public/assets/css/create-user-modal.css">
@@ -86,7 +243,7 @@ if ($canCreateUsers) {
     <div class="create-user-modal" role="dialog" aria-modal="true" aria-labelledby="createUserModalTitle">
         <div class="create-user-modal-header">
             <div>
-                <span>Gestión de usuarios</span>
+                <span>Gestión de cuentas</span>
                 <h3 id="createUserModalTitle">Crear nuevo usuario</h3>
             </div>
             <button type="button" class="create-user-close-btn" id="closeCreateUserModal" aria-label="Cerrar">&times;</button>
@@ -132,10 +289,7 @@ if ($canCreateUsers) {
                     <input type="text" id="create_user_position" name="position" placeholder="Opcional">
                 </div>
 
-                <div class="create-user-field create-user-full">
-                    <label for="create_user_company">Empresa</label>
-                    <input type="text" id="create_user_company" name="company" placeholder="Opcional">
-                </div>
+                ' . $companySelectorHtml . '
 
                 <div class="create-user-field">
                     <label for="create_user_password">Contraseña</label>
@@ -167,28 +321,41 @@ document.addEventListener("DOMContentLoaded", function () {
     const cancelBtn = document.getElementById("cancelCreateUserModal");
     const roleSelect = document.getElementById("create_user_role");
     const techLevelWrap = document.getElementById("createUserTechLevelWrap");
+    const clientOnlyBlocks = document.querySelectorAll(".create-user-client-only");
 
     function openModal() {
+        if (!modal) return;
         modal.classList.add("show");
         modal.setAttribute("aria-hidden", "false");
         document.body.classList.add("modal-open");
     }
 
     function closeModal() {
+        if (!modal) return;
         modal.classList.remove("show");
         modal.setAttribute("aria-hidden", "true");
         document.body.classList.remove("modal-open");
     }
 
-    function syncTechLevel() {
-        if (!roleSelect || !techLevelWrap) return;
-        techLevelWrap.style.display = roleSelect.value === "TECH" ? "block" : "none";
+    function syncRoleFields() {
+        if (!roleSelect) return;
+
+        const isTech = roleSelect.value === "TECH";
+        const isClient = roleSelect.value === "CLIENT";
+
+        if (techLevelWrap) {
+            techLevelWrap.style.display = isTech ? "block" : "none";
+        }
+
+        clientOnlyBlocks.forEach(function (block) {
+            block.style.display = isClient ? "block" : "none";
+        });
     }
 
     if (openBtn) openBtn.addEventListener("click", openModal);
     if (closeBtn) closeBtn.addEventListener("click", closeModal);
     if (cancelBtn) cancelBtn.addEventListener("click", closeModal);
-    if (roleSelect) roleSelect.addEventListener("change", syncTechLevel);
+    if (roleSelect) roleSelect.addEventListener("change", syncRoleFields);
 
     if (modal) {
         modal.addEventListener("click", function (event) {
@@ -197,10 +364,10 @@ document.addEventListener("DOMContentLoaded", function () {
     }
 
     document.addEventListener("keydown", function (event) {
-        if (event.key === "Escape" && modal.classList.contains("show")) closeModal();
+        if (event.key === "Escape" && modal && modal.classList.contains("show")) closeModal();
     });
 
-    syncTechLevel();
+    syncRoleFields();
 });
 </script>
 ';
