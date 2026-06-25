@@ -5,10 +5,6 @@ require_once __DIR__ . '/app/helpers/session.php';
 require_once __DIR__ . '/app/helpers/system_security.php';
 
 if (isLoggedIn()) {
-<<<<<<< HEAD
-    header('Location: /helpdesk-php/index.php');
-    exit;
-=======
     $sessionCheck = enforceCurrentSecuritySession();
 
     if (!empty($sessionCheck['valid'])) {
@@ -19,7 +15,6 @@ if (isLoggedIn()) {
         }
         exit;
     }
->>>>>>> fbc9f0c (Actualización de módulos y configuración del sistema)
 }
 
 $authController = new AuthController($pdo);
@@ -41,16 +36,6 @@ if (isset($reasonMessages[$reason])) {
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-<<<<<<< HEAD
-    $email = trim($_POST['email'] ?? '');
-    $password = trim($_POST['password'] ?? '');
-
-    $result = $authController->login($email, $password);
-
-    if (!empty($result['success'])) {
-        header('Location: /helpdesk-php/index.php');
-        exit;
-=======
     if (!systemSecurityVerifyCsrf($_POST['csrf_token'] ?? null, 'login')) {
         $errorMessage = 'El formulario venció. Recarga la página e inténtalo nuevamente.';
     } else {
@@ -69,10 +54,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         $errorMessage = $result['message'] ?? 'No se pudo iniciar sesión.';
->>>>>>> fbc9f0c (Actualización de módulos y configuración del sistema)
     }
-
-    $errorMessage = $result['message'] ?? 'No se pudo iniciar sesión.';
 }
 
 $authCssPath = $_SERVER['DOCUMENT_ROOT'] . '/helpdesk-php/public/assets/css/auth-app.css';
@@ -122,16 +104,6 @@ $authCssVersion = file_exists($authCssPath) ? filemtime($authCssPath) : time();
                     </div>
                 </div>
 
-<<<<<<< HEAD
-                <?php if (!empty($errorMessage)): ?>
-                    <div class="alert error login-alert">
-                        <i class="fa-solid fa-circle-exclamation"></i>
-                        <span><?= htmlspecialchars($errorMessage, ENT_QUOTES, 'UTF-8') ?></span>
-                    </div>
-                <?php endif; ?>
-
-                <form method="POST" action="/helpdesk-php/login.php" class="login-form" autocomplete="off">
-=======
                 <?php if ($noticeMessage !== ''): ?>
                     <div class="alert success login-alert">
                         <i class="fa-solid fa-circle-info"></i>
@@ -149,7 +121,6 @@ $authCssVersion = file_exists($authCssPath) ? filemtime($authCssPath) : time();
                 <form method="POST" action="/helpdesk-php/login.php" class="login-form" autocomplete="off">
                     <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($loginCsrfToken, ENT_QUOTES, 'UTF-8') ?>">
 
->>>>>>> fbc9f0c (Actualización de módulos y configuración del sistema)
                     <div class="form-group login-input-group">
                         <label for="email">Correo</label>
                         <div class="login-input-wrap">
@@ -158,10 +129,7 @@ $authCssVersion = file_exists($authCssPath) ? filemtime($authCssPath) : time();
                                 type="email"
                                 id="email"
                                 name="email"
-<<<<<<< HEAD
-=======
                                 value="<?= htmlspecialchars((string) ($_POST['email'] ?? ''), ENT_QUOTES, 'UTF-8') ?>"
->>>>>>> fbc9f0c (Actualización de módulos y configuración del sistema)
                                 placeholder="correo@empresa.com"
                                 autocomplete="email"
                                 required

@@ -781,15 +781,12 @@ require_once __DIR__ . '/../layouts/header.php';
                         data-elapsed-seconds="<?= (int)round(($slaTimer['elapsed_hours'] ?? 0) * 3600) ?>"
                         data-is-closed="<?= !empty($slaTimer['is_closed']) ? '1' : '0' ?>"
                         data-contract="<?= htmlspecialchars($slaTimer['contract_type'] ?? '8_5') ?>"
-<<<<<<< HEAD
-=======
                         data-work-start-minutes="<?= systemSlaTimeToMinutes((string)($ticket['sla_work_start'] ?? '08:00:00')) ?>"
                         data-work-end-minutes="<?= systemSlaTimeToMinutes((string)($ticket['sla_work_end'] ?? '17:00:00')) ?>"
                         data-work-days="<?= htmlspecialchars((string)($ticket['sla_work_days'] ?? '1,2,3,4,5')) ?>"
                         data-warning-percent="<?= (int)($slaTimer['warning_percent'] ?? 75) ?>"
                         data-critical-percent="<?= (int)($slaTimer['critical_percent'] ?? 90) ?>"
                         data-status-paused="<?= !empty($ticket['sla_pause_started_at']) ? '1' : '0' ?>"
->>>>>>> fbc9f0c (Actualización de módulos y configuración del sistema)
                         data-is-running="<?= !empty($slaTimer['is_running']) ? '1' : '0' ?>"
                         title="<?= htmlspecialchars($slaTimer['tooltip'] ?? '') ?>"
                     >
@@ -1211,15 +1208,12 @@ require_once __DIR__ . '/../layouts/header.php';
                 data-elapsed-seconds="<?= (int)round(($slaTimer['elapsed_hours'] ?? 0) * 3600) ?>"
                 data-is-closed="<?= !empty($slaTimer['is_closed']) ? '1' : '0' ?>"
                 data-contract="<?= htmlspecialchars($slaTimer['contract_type'] ?? '8_5') ?>"
-<<<<<<< HEAD
-=======
                 data-work-start-minutes="<?= systemSlaTimeToMinutes((string)($ticket['sla_work_start'] ?? '08:00:00')) ?>"
                 data-work-end-minutes="<?= systemSlaTimeToMinutes((string)($ticket['sla_work_end'] ?? '17:00:00')) ?>"
                 data-work-days="<?= htmlspecialchars((string)($ticket['sla_work_days'] ?? '1,2,3,4,5')) ?>"
                 data-warning-percent="<?= (int)($slaTimer['warning_percent'] ?? 75) ?>"
                 data-critical-percent="<?= (int)($slaTimer['critical_percent'] ?? 90) ?>"
                 data-status-paused="<?= !empty($ticket['sla_pause_started_at']) ? '1' : '0' ?>"
->>>>>>> fbc9f0c (Actualización de módulos y configuración del sistema)
                 data-is-running="<?= !empty($slaTimer['is_running']) ? '1' : '0' ?>"
                 title="<?= htmlspecialchars($slaTimer['tooltip'] ?? '') ?>">
                 <div class="sla-timer-header">
@@ -1954,40 +1948,23 @@ function fixedTimezoneParts(timestampMs, offsetSeconds) {
     };
 }
 
-<<<<<<< HEAD
-function isSlaScheduleRunning(timestampMs, contractType, offsetSeconds) {
-=======
 function isSlaScheduleRunning(timestampMs, contractType, offsetSeconds, workStartMinutes, workEndMinutes, workDays) {
->>>>>>> fbc9f0c (Actualización de módulos y configuración del sistema)
     if (contractType === '24_7') {
         return true;
     }
 
     const parts = fixedTimezoneParts(timestampMs, offsetSeconds);
-<<<<<<< HEAD
-
-    if (parts.weekday === 0 || parts.weekday === 6) {
-=======
     const isoWeekday = parts.weekday === 0 ? 7 : parts.weekday;
 
     if (!workDays.includes(isoWeekday)) {
->>>>>>> fbc9f0c (Actualización de módulos y configuración del sistema)
         return false;
     }
 
     const currentMinutes = (parts.hour * 60) + parts.minute;
-<<<<<<< HEAD
-
-    return currentMinutes >= (8 * 60) && currentMinutes < (17 * 60);
-}
-
-function businessSecondsBetween(startMs, endMs, offsetSeconds) {
-=======
     return currentMinutes >= workStartMinutes && currentMinutes < workEndMinutes;
 }
 
 function businessSecondsBetween(startMs, endMs, offsetSeconds, workStartMinutes, workEndMinutes, workDays) {
->>>>>>> fbc9f0c (Actualización de módulos y configuración del sistema)
     if (endMs <= startMs) {
         return 0;
     }
@@ -2012,17 +1989,6 @@ function businessSecondsBetween(startMs, endMs, offsetSeconds, workStartMinutes,
     while (localDayCursor <= localEndDay) {
         const localDay = new Date(localDayCursor);
         const weekday = localDay.getUTCDay();
-<<<<<<< HEAD
-
-        if (weekday !== 0 && weekday !== 6) {
-            const year = localDay.getUTCFullYear();
-            const month = localDay.getUTCMonth();
-            const day = localDay.getUTCDate();
-
-            const workStartMs = Date.UTC(year, month, day, 8, 0, 0)
-                - (offsetSeconds * 1000);
-            const workEndMs = Date.UTC(year, month, day, 17, 0, 0)
-=======
         const isoWeekday = weekday === 0 ? 7 : weekday;
 
         if (workDays.includes(isoWeekday)) {
@@ -2037,7 +2003,6 @@ function businessSecondsBetween(startMs, endMs, offsetSeconds, workStartMinutes,
             const workStartMs = Date.UTC(year, month, day, workStartHour, workStartMinute, 0)
                 - (offsetSeconds * 1000);
             const workEndMs = Date.UTC(year, month, day, workEndHour, workEndMinute, 0)
->>>>>>> fbc9f0c (Actualización de módulos y configuración del sistema)
                 - (offsetSeconds * 1000);
 
             const overlapStart = Math.max(startMs, workStartMs);
@@ -2096,8 +2061,6 @@ function updateSlaTimerCard(card) {
     const isClosed = card.dataset.isClosed === '1';
     const contractType = card.dataset.contract || '8_5';
     const timezoneOffset = Number(card.dataset.timezoneOffset || -18000);
-<<<<<<< HEAD
-=======
     const workStartMinutes = Number(card.dataset.workStartMinutes || 480);
     const workEndMinutes = Number(card.dataset.workEndMinutes || 1020);
     const workDays = String(card.dataset.workDays || '1,2,3,4,5')
@@ -2107,7 +2070,6 @@ function updateSlaTimerCard(card) {
     const warningPercent = Number(card.dataset.warningPercent || 75);
     const criticalPercent = Number(card.dataset.criticalPercent || 90);
     const statusPaused = card.dataset.statusPaused === '1';
->>>>>>> fbc9f0c (Actualización de módulos y configuración del sistema)
     const slaSeconds = Math.max(0, Number(card.dataset.slaSeconds || 0));
     const baseElapsedSeconds = Math.max(
         0,
@@ -2117,11 +2079,7 @@ function updateSlaTimerCard(card) {
 
     let elapsedSeconds = baseElapsedSeconds;
 
-<<<<<<< HEAD
-    if (!isClosed && slaSeconds > 0) {
-=======
     if (!isClosed && !statusPaused && slaSeconds > 0) {
->>>>>>> fbc9f0c (Actualización de módulos y configuración del sistema)
         if (contractType === '24_7') {
             elapsedSeconds += Math.max(
                 0,
@@ -2131,14 +2089,10 @@ function updateSlaTimerCard(card) {
             elapsedSeconds += businessSecondsBetween(
                 clientStartedAt,
                 nowMs,
-<<<<<<< HEAD
-                timezoneOffset
-=======
                 timezoneOffset,
                 workStartMinutes,
                 workEndMinutes,
                 workDays
->>>>>>> fbc9f0c (Actualización de módulos y configuración del sistema)
             );
         }
     }
@@ -2146,14 +2100,10 @@ function updateSlaTimerCard(card) {
     const scheduleRunning = isSlaScheduleRunning(
         nowMs,
         contractType,
-<<<<<<< HEAD
-        timezoneOffset
-=======
         timezoneOffset,
         workStartMinutes,
         workEndMinutes,
         workDays
->>>>>>> fbc9f0c (Actualización de módulos y configuración del sistema)
     );
 
     const remainingSigned = slaSeconds - elapsedSeconds;
@@ -2175,12 +2125,6 @@ function updateSlaTimerCard(card) {
         phaseClass = card.dataset.initialPhaseClass || 'sla-phase-paused';
         label = card.dataset.initialPhaseLabel || 'Ticket cerrado';
         message = card.dataset.initialNote || 'El conteo del SLA finalizó.';
-<<<<<<< HEAD
-    } else if (contractType !== '24_7' && !scheduleRunning) {
-        phaseClass = 'sla-phase-paused';
-        label = 'Conteo pausado';
-        message = 'El contrato 8/5 está fuera del horario de lunes a viernes, 08:00 a 17:00.';
-=======
     } else if (statusPaused) {
         phaseClass = 'sla-phase-paused';
         label = 'Conteo pausado';
@@ -2189,21 +2133,10 @@ function updateSlaTimerCard(card) {
         phaseClass = 'sla-phase-paused';
         label = 'Conteo pausado';
         message = 'El contador está fuera del horario de atención configurado.';
->>>>>>> fbc9f0c (Actualización de módulos y configuración del sistema)
     } else if (rawPercent >= 100) {
         phaseClass = 'sla-phase-red';
         label = 'SLA vencido';
         message = 'El tiempo objetivo fue superado y el ticket requiere atención prioritaria.';
-<<<<<<< HEAD
-    } else if (rawPercent >= 75) {
-        phaseClass = 'sla-phase-yellow';
-        label = 'Próximo a vencer';
-        message = 'El ticket está cerca de consumir el tiempo objetivo.';
-    } else if (rawPercent >= 50) {
-        phaseClass = 'sla-phase-yellow';
-        label = 'En seguimiento';
-        message = 'El ticket consumió más de la mitad del SLA.';
-=======
     } else if (rawPercent >= criticalPercent) {
         phaseClass = 'sla-phase-yellow';
         label = 'Alerta crítica';
@@ -2212,7 +2145,6 @@ function updateSlaTimerCard(card) {
         phaseClass = 'sla-phase-yellow';
         label = 'Próximo a vencer';
         message = 'El ticket está cerca de consumir el tiempo objetivo.';
->>>>>>> fbc9f0c (Actualización de módulos y configuración del sistema)
     }
 
     badge.className = 'sla-timer-badge ' + phaseClass;

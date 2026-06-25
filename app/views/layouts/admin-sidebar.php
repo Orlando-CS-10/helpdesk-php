@@ -163,15 +163,9 @@ $sidebarActivePage = (string)($activePage ?? $adminActiveMenu ?? '');
         </a>
 
         <a
-<<<<<<< HEAD
-            href="/helpdesk-php/settings.php"
-            title="Ajustes"
-            class="<?= $sidebarActivePage === 'settings' ? 'active' : '' ?>">
-=======
             href="/helpdesk-php/admin-settings.php"
             title="Ajustes"
             class="<?= in_array($sidebarActivePage, ['settings', 'system-profile', 'system-customization', 'system-security', 'system-sla'], true) ? 'active' : '' ?>">
->>>>>>> fbc9f0c (Actualización de módulos y configuración del sistema)
             <span>
                 <i class="fa-solid fa-gear"></i>
                 <span class="admin-link-text">Ajustes</span>

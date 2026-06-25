@@ -237,11 +237,8 @@ try {
     $hasStatus = tableColumnExists($pdo, 'users', 'status');
     $hasTechLevel = tableColumnExists($pdo, 'users', 'tech_level');
     $hasCreatedAt = tableColumnExists($pdo, 'users', 'created_at');
-<<<<<<< HEAD
-=======
     $hasForcePasswordChange = tableColumnExists($pdo, 'users', 'force_password_change');
     $hasPasswordChangedAt = tableColumnExists($pdo, 'users', 'password_changed_at');
->>>>>>> fbc9f0c (Actualización de módulos y configuración del sistema)
 
     $columns = ['name', 'email', 'role', $passwordColumn, 'phone', 'position', 'company'];
     $placeholders = [':name', ':email', ':role', ':password', ':phone', ':position', ':company'];
@@ -279,8 +276,6 @@ try {
         $params['tech_level'] = $role === 'TECH' ? $techLevel : null;
     }
 
-<<<<<<< HEAD
-=======
     if ($hasForcePasswordChange) {
         $columns[] = 'force_password_change';
         $placeholders[] = ':force_password_change';
@@ -292,7 +287,6 @@ try {
         $placeholders[] = 'NOW()';
     }
 
->>>>>>> fbc9f0c (Actualización de módulos y configuración del sistema)
     if ($hasCreatedAt) {
         $columns[] = 'created_at';
         $placeholders[] = 'NOW()';
@@ -301,8 +295,6 @@ try {
     $sql = 'INSERT INTO users (`' . implode('`, `', $columns) . '`) VALUES (' . implode(', ', $placeholders) . ')';
     $stmt = $pdo->prepare($sql);
     $stmt->execute($params);
-<<<<<<< HEAD
-=======
     $createdUserId = (int) $pdo->lastInsertId();
 
     systemSecurityAudit(
@@ -314,7 +306,6 @@ try {
         'info',
         ['role' => $role, 'force_password_change' => !empty($securitySettings['force_change_on_create'])]
     );
->>>>>>> fbc9f0c (Actualización de módulos y configuración del sistema)
 
     $pdo->commit();
 

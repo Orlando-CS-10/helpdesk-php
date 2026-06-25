@@ -19,12 +19,6 @@ if (isLoggedIn()) {
      */
     $layoutPdo = $pdo ?? ($GLOBALS['pdo'] ?? null);
 
-<<<<<<< HEAD
-    $stmtNotifications = $pdo->prepare($sqlNotifications);
-    $stmtNotifications->execute([
-        'user_id' => (int) $currentUser['id'],
-    ]);
-=======
     if ($layoutPdo instanceof PDO && !empty($currentUser['id'])) {
         try {
             $sqlNotifications = "SELECT id, title, message, type, is_read, related_ticket_id, created_at
@@ -32,7 +26,6 @@ if (isLoggedIn()) {
                                  WHERE user_id = :user_id
                                  ORDER BY created_at DESC
                                  LIMIT 8";
->>>>>>> fbc9f0c (Actualización de módulos y configuración del sistema)
 
             $stmtNotifications = $layoutPdo->prepare($sqlNotifications);
             $stmtNotifications->execute([
@@ -41,14 +34,6 @@ if (isLoggedIn()) {
 
             $notifications = $stmtNotifications->fetchAll(PDO::FETCH_ASSOC);
 
-<<<<<<< HEAD
-    $stmtUnread = $pdo->prepare($sqlUnread);
-    $stmtUnread->execute([
-        'user_id' => (int) $currentUser['id'],
-    ]);
-
-    $unreadNotifications = (int) ($stmtUnread->fetch(PDO::FETCH_ASSOC)['total'] ?? 0);
-=======
             $sqlUnread = "SELECT COUNT(*) AS total
                           FROM notifications
                           WHERE user_id = :user_id
@@ -139,111 +124,15 @@ if (is_file($systemCustomizationHelper)) {
     $systemSidebarDefault = in_array($candidateSidebar, ['expanded', 'collapsed'], true)
         ? $candidateSidebar
         : 'expanded';
->>>>>>> fbc9f0c (Actualización de módulos y configuración del sistema)
 }
-
-/*
- * Se usan tres paquetes de estilos independientes:
- *
- * auth-app.css   -> inicio de sesión.
- * client-app.css -> portada y vistas del cliente.
- * app.css        -> panel administrativo y técnico.
- *
- * Las vistas pueden forzar uno de los diseños definiendo antes de
- * incluir este archivo: $useAuthLayout o $useClientLayout.
- */
-$useAuthLayout = (bool) ($useAuthLayout ?? false);
-$useClientLayout = (bool) ($useClientLayout ?? false);
-
-$currentScript = basename((string) parse_url($_SERVER['SCRIPT_NAME'] ?? '', PHP_URL_PATH));
-$publicLayoutScripts = ['home.php', 'knowledge-article.php'];
-$authLayoutScripts = ['login.php'];
-
-if ($useAuthLayout || in_array($currentScript, $authLayoutScripts, true)) {
-    $cssEntryFile = 'auth-app.css';
-} elseif ($useClientLayout || in_array($currentScript, $publicLayoutScripts, true)) {
-    /*
-     * La portada y los artículos siempre usan el diseño público,
-     * incluso cuando los abre un administrador o un técnico.
-     */
-    $cssEntryFile = 'client-app.css';
-} elseif (!isLoggedIn()) {
-    $cssEntryFile = 'auth-app.css';
-} elseif ($currentRole === 'CLIENT') {
-    $cssEntryFile = 'client-app.css';
-} else {
-    $cssEntryFile = 'app.css';
-}
-
-$cssBaseUrl = '/helpdesk-php/public/assets/css/';
-$projectRoot = dirname(__DIR__, 3);
-$cssEntryPath = $projectRoot . '/public/assets/css/' . $cssEntryFile;
-$cssVersion = file_exists($cssEntryPath) ? filemtime($cssEntryPath) : time();
 ?>
 <!doctype html>
-<<<<<<< HEAD
-<html lang="es">
-=======
 <html lang="es" data-system-theme-setting="<?= htmlspecialchars($systemThemeSetting, ENT_QUOTES, 'UTF-8') ?>" data-system-theme="light">
->>>>>>> fbc9f0c (Actualización de módulos y configuración del sistema)
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><?= htmlspecialchars($title ?? 'Mesa de Ayuda', ENT_QUOTES, 'UTF-8') ?></title>
 
-<<<<<<< HEAD
-    <link rel="stylesheet"
-          href="<?= htmlspecialchars($cssBaseUrl . $cssEntryFile, ENT_QUOTES, 'UTF-8') ?>?v=<?= (int) $cssVersion ?>">
-
-    <script src="https://kit.fontawesome.com/b44fd2b2de.js" crossorigin="anonymous"></script>
-</head>
-<body>
-<?php
-$toastMessage = '';
-$toastType = '';
-
-if (!empty($_SESSION['ticket_success'])) {
-    $toastMessage = (string) $_SESSION['ticket_success'];
-    $toastType = 'success';
-    unset($_SESSION['ticket_success']);
-} elseif (!empty($_SESSION['ticket_error'])) {
-    $toastMessage = (string) $_SESSION['ticket_error'];
-    $toastType = 'error';
-    unset($_SESSION['ticket_error']);
-} elseif (!empty($_SESSION['settings_success'])) {
-    $toastMessage = (string) $_SESSION['settings_success'];
-    $toastType = 'success';
-    unset($_SESSION['settings_success']);
-} elseif (!empty($_SESSION['settings_error'])) {
-    $toastMessage = (string) $_SESSION['settings_error'];
-    $toastType = 'error';
-    unset($_SESSION['settings_error']);
-}
-?>
-
-<?php if ($toastMessage !== ''): ?>
-    <div class="toast-container">
-        <div class="toast toast-<?= htmlspecialchars($toastType, ENT_QUOTES, 'UTF-8') ?>" id="appToast">
-            <div class="toast-content">
-                <strong class="toast-title">
-                    <?= $toastType === 'success' ? 'Correcto' : 'Atención' ?>
-                </strong>
-                <p class="toast-message"><?= htmlspecialchars($toastMessage, ENT_QUOTES, 'UTF-8') ?></p>
-            </div>
-
-            <button type="button" class="toast-close" onclick="closeToast()" aria-label="Cerrar notificación">×</button>
-        </div>
-    </div>
-
-    <script>
-        function closeToast() {
-            const toast = document.getElementById('appToast');
-
-            if (!toast) {
-                return;
-            }
-
-=======
     <script>
         (function () {
             const root = document.documentElement;
@@ -344,7 +233,6 @@ if (!empty($_SESSION['ticket_success'])) {
                 return;
             }
 
->>>>>>> fbc9f0c (Actualización de módulos y configuración del sistema)
             toast.classList.add('toast-hide');
             window.setTimeout(() => toast.remove(), 300);
         }

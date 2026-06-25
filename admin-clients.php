@@ -1,10 +1,7 @@
 <?php
 require_once __DIR__ . '/app/helpers/session.php';
 require_once __DIR__ . '/app/config/database.php';
-<<<<<<< HEAD
-=======
 require_once __DIR__ . '/app/helpers/system_sla.php';
->>>>>>> fbc9f0c (Actualización de módulos y configuración del sistema)
 
 requireLogin();
 
@@ -19,11 +16,7 @@ if (!in_array($currentRole, $allowedRoles, true)) {
 
 function clientCompaniesTableExists(PDO $pdo, string $table): bool
 {
-<<<<<<< HEAD
-    $stmt = $pdo->prepare("SHOW TABLES LIKE :table_name");
-=======
     $stmt = $pdo->prepare('SHOW TABLES LIKE :table_name');
->>>>>>> fbc9f0c (Actualización de módulos y configuración del sistema)
     $stmt->execute(['table_name' => $table]);
     return (bool) $stmt->fetch(PDO::FETCH_NUM);
 }
@@ -59,9 +52,6 @@ $statusFilter = trim($_GET['status'] ?? '');
 
 $companyModuleReady = clientCompaniesTableExists($pdo, 'client_companies');
 $hasUserCompanyId = clientCompaniesColumnExists($pdo, 'users', 'company_id');
-<<<<<<< HEAD
-$hasTicketCompanyId = clientCompaniesTableExists($pdo, 'tickets') && clientCompaniesColumnExists($pdo, 'tickets', 'company_id');
-=======
 $hasTicketCompanyId = clientCompaniesTableExists($pdo, 'tickets')
     && clientCompaniesColumnExists($pdo, 'tickets', 'company_id');
 $companyLogoColumnReady = $companyModuleReady
@@ -70,7 +60,6 @@ $slaProfilesReady = $companyModuleReady
     && systemSlaModuleReady($pdo)
     && clientCompaniesColumnExists($pdo, 'client_companies', 'sla_profile_id');
 $availableSlaProfiles = $slaProfilesReady ? systemSlaProfiles($pdo, true) : [];
->>>>>>> fbc9f0c (Actualización de módulos y configuración del sistema)
 $canManageClients = $currentRole === 'ADMIN';
 
 $clients = [];
@@ -84,17 +73,6 @@ $summary = [
 if ($companyModuleReady) {
     $contactsCountSql = $hasUserCompanyId
         ? "(SELECT COUNT(*) FROM users u WHERE u.company_id = cc.id AND u.role = 'CLIENT') AS contacts_count"
-<<<<<<< HEAD
-        : "0 AS contacts_count";
-
-    $ticketsCountSql = $hasTicketCompanyId
-        ? "(SELECT COUNT(*) FROM tickets t WHERE t.company_id = cc.id) AS tickets_count"
-        : "0 AS tickets_count";
-
-    $openTicketsCountSql = $hasTicketCompanyId
-        ? "(SELECT COUNT(*) FROM tickets t WHERE t.company_id = cc.id AND t.status <> 'CERRADO') AS open_tickets_count"
-        : "0 AS open_tickets_count";
-=======
         : '0 AS contacts_count';
 
     $ticketsCountSql = $hasTicketCompanyId
@@ -114,7 +92,6 @@ if ($companyModuleReady) {
         : "NULL AS sla_profile_id, NULL AS sla_profile_name, NULL AS sla_profile_schedule_type, NULL AS sla_profile_work_start, NULL AS sla_profile_work_end, NULL AS sla_profile_work_days";
 
     $slaProfileJoinSql = $slaProfilesReady ? 'LEFT JOIN sla_profiles sp ON sp.id = cc.sla_profile_id' : '';
->>>>>>> fbc9f0c (Actualización de módulos y configuración del sistema)
 
     $sql = "SELECT
                 cc.id,
@@ -128,19 +105,13 @@ if ($companyModuleReady) {
                 cc.status,
                 cc.created_at,
                 cc.updated_at,
-<<<<<<< HEAD
-=======
                 $logoSelectSql,
                 $slaProfileSelectSql,
->>>>>>> fbc9f0c (Actualización de módulos y configuración del sistema)
                 $contactsCountSql,
                 $ticketsCountSql,
                 $openTicketsCountSql
             FROM client_companies cc
-<<<<<<< HEAD
-=======
             $slaProfileJoinSql
->>>>>>> fbc9f0c (Actualización de módulos y configuración del sistema)
             WHERE 1=1";
 
     $params = [];
@@ -157,28 +128,16 @@ if ($companyModuleReady) {
     }
 
     if (in_array($sla, ['24_7', '8_5'], true)) {
-<<<<<<< HEAD
-        $sql .= " AND cc.sla_contract_type = :sla";
-=======
         $sql .= ' AND cc.sla_contract_type = :sla';
->>>>>>> fbc9f0c (Actualización de módulos y configuración del sistema)
         $params['sla'] = $sla;
     }
 
     if ($statusFilter !== '' && in_array($statusFilter, ['1', '0'], true)) {
-<<<<<<< HEAD
-        $sql .= " AND cc.status = :status";
-        $params['status'] = (int) $statusFilter;
-    }
-
-    $sql .= " ORDER BY cc.created_at DESC, cc.business_name ASC";
-=======
         $sql .= ' AND cc.status = :status';
         $params['status'] = (int) $statusFilter;
     }
 
     $sql .= ' ORDER BY cc.created_at DESC, cc.business_name ASC';
->>>>>>> fbc9f0c (Actualización de módulos y configuración del sistema)
 
     $stmt = $pdo->prepare($sql);
     $stmt->execute($params);

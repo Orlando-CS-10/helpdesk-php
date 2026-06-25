@@ -1,10 +1,7 @@
 <?php
 require_once __DIR__ . '/app/helpers/session.php';
 require_once __DIR__ . '/app/config/database.php';
-<<<<<<< HEAD
-=======
 require_once __DIR__ . '/app/helpers/system_sla.php';
->>>>>>> fbc9f0c (Actualización de módulos y configuración del sistema)
 
 requireLogin();
 
@@ -25,8 +22,6 @@ function redirectClients(): void
     exit;
 }
 
-<<<<<<< HEAD
-=======
 function clientCompanyColumnExists(PDO $pdo, string $column): bool
 {
     $stmt = $pdo->prepare("SHOW COLUMNS FROM `client_companies` LIKE :column");
@@ -102,7 +97,6 @@ function deleteUploadedCompanyLogo(?string $relativePath): void
     }
 }
 
->>>>>>> fbc9f0c (Actualización de módulos y configuración del sistema)
 $ruc = preg_replace('/\D+/', '', trim($_POST['ruc'] ?? ''));
 $businessName = trim($_POST['business_name'] ?? '');
 $tradeName = trim($_POST['trade_name'] ?? '');
@@ -110,11 +104,8 @@ $fiscalAddress = trim($_POST['fiscal_address'] ?? '');
 $phone = trim($_POST['phone'] ?? '');
 $email = trim($_POST['email'] ?? '');
 $slaContractType = trim($_POST['sla_contract_type'] ?? '8_5');
-<<<<<<< HEAD
-=======
 $slaProfileId = isset($_POST['sla_profile_id']) && $_POST['sla_profile_id'] !== '' ? (int) $_POST['sla_profile_id'] : null;
 $newLogoPath = null;
->>>>>>> fbc9f0c (Actualización de módulos y configuración del sistema)
 
 try {
     if ($businessName === '') {
@@ -125,8 +116,6 @@ try {
         throw new RuntimeException('El RUC debe tener 11 dígitos.');
     }
 
-<<<<<<< HEAD
-=======
     $slaModuleReady = systemSlaModuleReady($pdo)
         && clientCompanyColumnExists($pdo, 'sla_profile_id');
 
@@ -145,7 +134,6 @@ try {
         }
     }
 
->>>>>>> fbc9f0c (Actualización de módulos y configuración del sistema)
     if (!in_array($slaContractType, ['24_7', '8_5'], true)) {
         throw new RuntimeException('Selecciona un tipo de contrato SLA válido.');
     }
@@ -162,14 +150,6 @@ try {
         }
     }
 
-<<<<<<< HEAD
-    $stmt = $pdo->prepare('INSERT INTO client_companies
-        (ruc, business_name, trade_name, fiscal_address, phone, email, sla_contract_type, status, created_at)
-        VALUES
-        (:ruc, :business_name, :trade_name, :fiscal_address, :phone, :email, :sla_contract_type, 1, NOW())');
-
-    $stmt->execute([
-=======
     $logoColumnReady = clientCompanyColumnExists($pdo, 'logo_path');
     $newLogoPath = saveCompanyLogo($_FILES['company_logo'] ?? []);
 
@@ -180,7 +160,6 @@ try {
     $columns = ['ruc', 'business_name', 'trade_name', 'fiscal_address', 'phone', 'email', 'sla_contract_type', 'status', 'created_at'];
     $values = [':ruc', ':business_name', ':trade_name', ':fiscal_address', ':phone', ':email', ':sla_contract_type', '1', 'NOW()'];
     $params = [
->>>>>>> fbc9f0c (Actualización de módulos y configuración del sistema)
         'ruc' => $ruc !== '' ? $ruc : null,
         'business_name' => $businessName,
         'trade_name' => $tradeName !== '' ? $tradeName : null,
@@ -188,9 +167,6 @@ try {
         'phone' => $phone !== '' ? $phone : null,
         'email' => $email !== '' ? $email : null,
         'sla_contract_type' => $slaContractType,
-<<<<<<< HEAD
-    ]);
-=======
     ];
 
     if ($logoColumnReady) {
@@ -209,15 +185,11 @@ try {
         'INSERT INTO client_companies (' . implode(', ', $columns) . ') VALUES (' . implode(', ', $values) . ')'
     );
     $stmt->execute($params);
->>>>>>> fbc9f0c (Actualización de módulos y configuración del sistema)
 
     $_SESSION['client_success'] = 'Empresa cliente registrada correctamente.';
     redirectClients();
 } catch (Throwable $e) {
-<<<<<<< HEAD
-=======
     deleteUploadedCompanyLogo($newLogoPath);
->>>>>>> fbc9f0c (Actualización de módulos y configuración del sistema)
     $_SESSION['client_error'] = $e->getMessage();
     redirectClients();
 }

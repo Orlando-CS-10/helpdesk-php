@@ -1,10 +1,7 @@
 <?php
 require_once __DIR__ . '/app/helpers/session.php';
 require_once __DIR__ . '/app/config/database.php';
-<<<<<<< HEAD
-=======
 require_once __DIR__ . '/app/helpers/system_sla.php';
->>>>>>> fbc9f0c (Actualización de módulos y configuración del sistema)
 
 requireLogin();
 
@@ -25,8 +22,6 @@ function redirectClients(): void
     exit;
 }
 
-<<<<<<< HEAD
-=======
 function clientCompanyColumnExists(PDO $pdo, string $column): bool
 {
     $stmt = $pdo->prepare("SHOW COLUMNS FROM `client_companies` LIKE :column");
@@ -98,7 +93,6 @@ function deleteCompanyLogoFile(?string $relativePath): void
     }
 }
 
->>>>>>> fbc9f0c (Actualización de módulos y configuración del sistema)
 $id = isset($_POST['id']) ? (int) $_POST['id'] : 0;
 $ruc = preg_replace('/\D+/', '', trim($_POST['ruc'] ?? ''));
 $businessName = trim($_POST['business_name'] ?? '');
@@ -107,13 +101,10 @@ $fiscalAddress = trim($_POST['fiscal_address'] ?? '');
 $phone = trim($_POST['phone'] ?? '');
 $email = trim($_POST['email'] ?? '');
 $slaContractType = trim($_POST['sla_contract_type'] ?? '8_5');
-<<<<<<< HEAD
-=======
 $slaProfileId = isset($_POST['sla_profile_id']) && $_POST['sla_profile_id'] !== '' ? (int) $_POST['sla_profile_id'] : null;
 $removeLogo = isset($_POST['remove_logo']) && $_POST['remove_logo'] === '1';
 $newLogoPath = null;
 $oldLogoPath = null;
->>>>>>> fbc9f0c (Actualización de módulos y configuración del sistema)
 
 try {
     if ($id <= 0) {
@@ -128,8 +119,6 @@ try {
         throw new RuntimeException('El RUC debe tener 11 dígitos.');
     }
 
-<<<<<<< HEAD
-=======
     $slaModuleReady = systemSlaModuleReady($pdo)
         && clientCompanyColumnExists($pdo, 'sla_profile_id');
 
@@ -148,7 +137,6 @@ try {
         }
     }
 
->>>>>>> fbc9f0c (Actualización de módulos y configuración del sistema)
     if (!in_array($slaContractType, ['24_7', '8_5'], true)) {
         throw new RuntimeException('Selecciona un tipo de contrato SLA válido.');
     }
@@ -157,14 +145,6 @@ try {
         throw new RuntimeException('El correo corporativo no es válido.');
     }
 
-<<<<<<< HEAD
-    $stmtCompany = $pdo->prepare('SELECT id FROM client_companies WHERE id = :id LIMIT 1');
-    $stmtCompany->execute(['id' => $id]);
-    if (!$stmtCompany->fetch(PDO::FETCH_ASSOC)) {
-        throw new RuntimeException('La empresa cliente no existe.');
-    }
-
-=======
     $logoColumnReady = clientCompanyColumnExists($pdo, 'logo_path');
     $companySelect = $logoColumnReady
         ? 'SELECT id, logo_path FROM client_companies WHERE id = :id LIMIT 1'
@@ -180,7 +160,6 @@ try {
 
     $oldLogoPath = trim((string)($existingCompany['logo_path'] ?? '')) ?: null;
 
->>>>>>> fbc9f0c (Actualización de módulos y configuración del sistema)
     if ($ruc !== '') {
         $stmtDuplicate = $pdo->prepare('SELECT id FROM client_companies WHERE ruc = :ruc AND id <> :id LIMIT 1');
         $stmtDuplicate->execute(['ruc' => $ruc, 'id' => $id]);
@@ -189,20 +168,6 @@ try {
         }
     }
 
-<<<<<<< HEAD
-    $stmt = $pdo->prepare('UPDATE client_companies
-        SET ruc = :ruc,
-            business_name = :business_name,
-            trade_name = :trade_name,
-            fiscal_address = :fiscal_address,
-            phone = :phone,
-            email = :email,
-            sla_contract_type = :sla_contract_type,
-            updated_at = NOW()
-        WHERE id = :id');
-
-    $stmt->execute([
-=======
     $newLogoPath = saveCompanyLogo($_FILES['company_logo'] ?? []);
 
     if (($newLogoPath !== null || $removeLogo) && !$logoColumnReady) {
@@ -227,7 +192,6 @@ try {
         'updated_at = NOW()',
     ];
     $params = [
->>>>>>> fbc9f0c (Actualización de módulos y configuración del sistema)
         'id' => $id,
         'ruc' => $ruc !== '' ? $ruc : null,
         'business_name' => $businessName,
@@ -236,9 +200,6 @@ try {
         'phone' => $phone !== '' ? $phone : null,
         'email' => $email !== '' ? $email : null,
         'sla_contract_type' => $slaContractType,
-<<<<<<< HEAD
-    ]);
-=======
     ];
 
     if ($logoColumnReady) {
@@ -259,18 +220,14 @@ try {
     if ($logoColumnReady && $oldLogoPath !== null && $oldLogoPath !== $finalLogoPath) {
         deleteCompanyLogoFile($oldLogoPath);
     }
->>>>>>> fbc9f0c (Actualización de módulos y configuración del sistema)
 
     $_SESSION['client_success'] = 'Empresa cliente actualizada correctamente.';
     redirectClients();
 } catch (Throwable $e) {
-<<<<<<< HEAD
-=======
     if ($newLogoPath !== null && $newLogoPath !== $oldLogoPath) {
         deleteCompanyLogoFile($newLogoPath);
     }
 
->>>>>>> fbc9f0c (Actualización de módulos y configuración del sistema)
     $_SESSION['client_error'] = $e->getMessage();
     redirectClients();
 }

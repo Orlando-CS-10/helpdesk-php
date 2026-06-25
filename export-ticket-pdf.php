@@ -76,10 +76,7 @@ require_once __DIR__ . '/app/config/database.php';
 require_once __DIR__ . '/app/helpers/business_hours.php';
 require_once __DIR__ . '/app/helpers/sla_helper.php';
 require_once __DIR__ . '/app/helpers/ticket_message_helper.php';
-<<<<<<< HEAD
-=======
 require_once __DIR__ . '/app/helpers/ticket_pdf_helper.php';
->>>>>>> fbc9f0c (Actualización de módulos y configuración del sistema)
 
 requireLogin();
 
@@ -246,191 +243,9 @@ function ticketPdfTimelineItem(array $activity): string
         . '</div>';
 }
 
-<<<<<<< HEAD
-function pdfBusinessDuration(?string $start, ?string $end, bool $isPending = false): string
-{
-    if (empty($start)) {
-        return 'No disponible';
-    }
-
-    if ($isPending || empty($end)) {
-        return 'Pendiente';
-    }
-
-    try {
-        if (function_exists('formatBusinessTimeStatus')) {
-            return formatBusinessTimeStatus($start, $end, false);
-        }
-
-        if (function_exists('calculateBusinessHours')) {
-            $hours = (float)calculateBusinessHours($start, $end);
-            $totalMinutes = max(0, (int)round($hours * 60));
-            $h = intdiv($totalMinutes, 60);
-            $m = $totalMinutes % 60;
-            return sprintf('%d h %02d min', $h, $m);
-        }
-    } catch (Throwable $e) {
-        // Fallback abajo.
-    }
-
-    $seconds = max(0, strtotime($end) - strtotime($start));
-    $hours = intdiv($seconds, 3600);
-    $minutes = intdiv($seconds % 3600, 60);
-    return sprintf('%d h %02d min', $hours, $minutes);
-}
-
-function pdfInitials(?string $name): string
-{
-    $name = trim((string)$name);
-    if ($name === '') {
-        return 'U';
-    }
-
-    $parts = preg_split('/\s+/', $name);
-    $initials = '';
-    foreach ($parts as $part) {
-        if ($part !== '') {
-            $initials .= mb_strtoupper(mb_substr($part, 0, 1, 'UTF-8'), 'UTF-8');
-        }
-        if (mb_strlen($initials, 'UTF-8') >= 2) {
-            break;
-        }
-    }
-
-    return $initials ?: 'U';
-}
-
-function tableExists(PDO $pdo, string $table): bool
-{
-    try {
-        $stmt = $pdo->prepare('SHOW TABLES LIKE :table_name');
-        $stmt->execute(['table_name' => $table]);
-        return (bool)$stmt->fetchColumn();
-    } catch (Throwable $e) {
-        return false;
-    }
-}
-
-function renderRows(array $rows, array $columns, string $emptyMessage): string
-{
-    if (empty($rows)) {
-        return '<div class="empty-box">' . e_pdf($emptyMessage) . '</div>';
-    }
-
-    $html = '<table class="data-table"><thead><tr>';
-    foreach ($columns as $label => $callback) {
-        $html .= '<th>' . e_pdf($label) . '</th>';
-    }
-    $html .= '</tr></thead><tbody>';
-
-    foreach ($rows as $row) {
-        $html .= '<tr>';
-        foreach ($columns as $callback) {
-            $html .= '<td>' . $callback($row) . '</td>';
-        }
-        $html .= '</tr>';
-    }
-
-    $html .= '</tbody></table>';
-    return $html;
-}
-
-
-function pdfInlineAttachmentDataUri(array $attachment): ?string
-{
-    if ((int)($attachment['is_inline'] ?? 0) !== 1) {
-        return null;
-    }
-
-    $relativePath = ltrim((string)($attachment['storage_path'] ?? ''), '/');
-    $mimeType = (string)($attachment['mime_type'] ?? '');
-
-    if ($relativePath === '' || !str_starts_with($mimeType, 'image/')) {
-        return null;
-    }
-
-    $absolutePath = ticketStorageBasePath() . '/' . $relativePath;
-
-    if (!is_file($absolutePath)) {
-        return null;
-    }
-
-    $content = file_get_contents($absolutePath);
-
-    if ($content === false) {
-        return null;
-    }
-
-    return 'data:' . $mimeType . ';base64,' . base64_encode($content);
-}
-
-function pdfRenderMessageBody(array $message, array $attachments): string
-{
-    $format = strtolower((string)($message['message_format'] ?? 'plain'));
-    $body = $format === 'html'
-        ? ticketSanitizeRichHtml((string)($message['message'] ?? ''))
-        : nl2br(e_pdf($message['message'] ?? ''));
-
-    foreach ($attachments as $attachment) {
-        $attachmentId = (int)($attachment['id'] ?? 0);
-        $dataUri = pdfInlineAttachmentDataUri($attachment);
-
-        if ($attachmentId <= 0 || $dataUri === null) {
-            continue;
-        }
-
-        $publicUrl = '/helpdesk-php/download-message-attachment.php?id='
-            . $attachmentId
-            . '&inline=1';
-
-        $body = str_replace($publicUrl, $dataUri, $body);
-        $body = str_replace(
-            htmlspecialchars($publicUrl, ENT_QUOTES, 'UTF-8'),
-            $dataUri,
-            $body
-        );
-    }
-
-    return '<div class="pdf-rich-message">' . $body . '</div>';
-}
-
-function pdfRenderMessageDocuments(array $attachments): string
-{
-    $documents = array_values(array_filter(
-        $attachments,
-        static fn(array $attachment): bool => (int)($attachment['is_inline'] ?? 0) !== 1
-    ));
-
-    if (empty($documents)) {
-        return '';
-    }
-
-    $html = '<div class="pdf-attachments">';
-
-    foreach ($documents as $attachment) {
-        $extension = strtoupper(pathinfo(
-            (string)($attachment['original_name'] ?? ''),
-            PATHINFO_EXTENSION
-        ));
-
-        $html .= '<div class="pdf-attachment">'
-            . '<strong>' . e_pdf($extension !== '' ? $extension : 'FILE') . '</strong>'
-            . '<span>' . e_pdf($attachment['original_name'] ?? 'Archivo adjunto') . '</span>'
-            . '<em>' . e_pdf(ticketFormatBytes((int)($attachment['file_size'] ?? 0))) . '</em>'
-            . '</div>';
-    }
-
-    return $html . '</div>';
-}
-
-// =============================
-// Datos del ticket
-// =============================
-=======
 // =========================================================
 // Carga de información
 // =========================================================
->>>>>>> fbc9f0c (Actualización de módulos y configuración del sistema)
 $sqlTicket = "SELECT
                 t.*,
                 requester.name AS requester_name,
@@ -439,26 +254,17 @@ $sqlTicket = "SELECT
                 requester.position AS requester_position,
                 requester.company AS requester_company,
                 requester.company_id AS requester_company_id,
-<<<<<<< HEAD
-=======
                 requester.profile_photo AS requester_profile_photo,
->>>>>>> fbc9f0c (Actualización de módulos y configuración del sistema)
                 assigned.name AS assigned_name,
                 assigned.email AS assigned_email,
                 assigned.role AS assigned_role,
                 assigned.tech_level AS assigned_level,
-<<<<<<< HEAD
-                company.business_name AS company_business_name,
-                company.trade_name AS company_trade_name,
-                company.ruc AS company_ruc,
-=======
                 assigned.profile_photo AS assigned_profile_photo,
                 company.business_name AS company_business_name,
                 company.trade_name AS company_trade_name,
                 company.ruc AS company_ruc,
                 company.phone AS company_phone,
                 company.email AS company_email,
->>>>>>> fbc9f0c (Actualización de módulos y configuración del sistema)
                 company.sla_contract_type AS sla_contract_type
               FROM tickets t
               INNER JOIN users requester ON requester.id = t.requester_id
@@ -477,15 +283,7 @@ if (!$ticket) {
     exit;
 }
 
-<<<<<<< HEAD
-$publicFormatSelect = ticketColumnExists($pdo, 'ticket_messages', 'message_format')
-    ? 'tm.message_format'
-    : "'plain' AS message_format";
-
-$sqlMessages = "SELECT tm.*, {$publicFormatSelect}, u.name, u.role
-=======
 $sqlMessages = "SELECT tm.*, u.name, u.role, u.profile_photo
->>>>>>> fbc9f0c (Actualización de módulos y configuración del sistema)
                 FROM ticket_messages tm
                 INNER JOIN users u ON u.id = tm.user_id
                 WHERE tm.ticket_id = :ticket_id
@@ -542,23 +340,6 @@ $internalMessages = [];
 $internalMessageAttachments = [];
 
 if (ticketTableExists($pdo, 'ticket_internal_messages')) {
-<<<<<<< HEAD
-    $internalFormatSelect = ticketColumnExists(
-        $pdo,
-        'ticket_internal_messages',
-        'message_format'
-    )
-        ? 'tim.message_format'
-        : "'plain' AS message_format";
-
-    $sqlInternal = "SELECT tim.*, {$internalFormatSelect}, u.name, u.role
-                    FROM ticket_internal_messages tim
-                    INNER JOIN users u ON u.id = tim.user_id
-                    WHERE tim.ticket_id = :ticket_id
-                      AND (tim.deleted_at IS NULL OR tim.deleted_at = '0000-00-00 00:00:00')
-                    ORDER BY tim.created_at ASC, tim.id ASC";
-    $stmtInternal = $pdo->prepare($sqlInternal);
-=======
     $stmtInternal = $pdo->prepare(
         "SELECT tim.*, u.name, u.role, u.profile_photo
          FROM ticket_internal_messages tim
@@ -567,7 +348,6 @@ if (ticketTableExists($pdo, 'ticket_internal_messages')) {
            AND (tim.deleted_at IS NULL OR tim.deleted_at = '0000-00-00 00:00:00')
          ORDER BY tim.created_at ASC, tim.id ASC"
     );
->>>>>>> fbc9f0c (Actualización de módulos y configuración del sistema)
     $stmtInternal->execute(['ticket_id' => $ticketId]);
     $internalMessages = $stmtInternal->fetchAll(PDO::FETCH_ASSOC);
 
@@ -578,27 +358,6 @@ if (ticketTableExists($pdo, 'ticket_internal_messages')) {
     );
 }
 
-<<<<<<< HEAD
-$firstResponseAt = $ticket['level_first_response_at'] ?? $ticket['first_response_at'] ?? null;
-$closedAt = $ticket['closed_at'] ?? null;
-
-if (empty($closedAt) && ($ticket['status'] ?? '') === 'CERRADO') {
-    $closedAt = $ticket['updated_at'] ?? null;
-}
-
-$ttaHours = getTicketTtaHours($ticket);
-$ttrHours = getTicketTtrHours($ticket);
-$ttaLabel = $ttaHours === null ? 'Pendiente' : formatSlaDuration($ttaHours);
-$ttrLabel = $ttrHours === null ? 'Pendiente' : formatSlaDuration($ttrHours);
-
-$slaTimer = getSlaTimerData($ticket);
-$slaLabel = $slaTimer['status_label'] ?? getSlaStatusLabel($ticket);
-$slaClass = match (true) {
-    str_contains($slaLabel, 'cumplido'), $slaLabel === 'Dentro del SLA' => 'badge-success',
-    str_contains($slaLabel, 'vencido'), str_contains($slaLabel, 'fuera') => 'badge-danger',
-    default => 'badge-pending',
-};
-=======
 $allAttachments = [];
 if (ticketTableExists($pdo, 'ticket_message_attachments')) {
     $stmtAttachments = $pdo->prepare(
@@ -624,7 +383,6 @@ if (ticketTableExists($pdo, 'ticket_level_history')) {
     $stmtLevelHistory->execute(['ticket_id' => $ticketId]);
     $levelHistory = $stmtLevelHistory->fetchAll(PDO::FETCH_ASSOC);
 }
->>>>>>> fbc9f0c (Actualización de módulos y configuración del sistema)
 
 // =========================================================
 // Configuración del reporte
@@ -788,23 +546,6 @@ if (!$includePublic) {
             . ' mensajes adicionales se incluyen en formato compacto, sin repetir imágenes ni documentos.</span></div>';
     }
 } else {
-<<<<<<< HEAD
-    foreach ($messages as $message) {
-        $attachments = $messageAttachments[(int)$message['id']] ?? [];
-
-        $messagesHtml .= '<div class="message-box">
-            <div class="avatar">' . e_pdf(pdfInitials($message['name'] ?? '')) . '</div>
-            <div class="message-content">
-                <div class="message-head">
-                    <strong>' . e_pdf($message['name'] ?? 'Usuario') . '</strong>
-                    <span>' . e_pdf(pdfRoleLabel($message['role'] ?? '')) . '</span>
-                    <em>' . e_pdf(pdfDate($message['created_at'] ?? null)) . '</em>
-                </div>'
-                . pdfRenderMessageBody($message, $attachments)
-                . pdfRenderMessageDocuments($attachments)
-            . '</div>
-        </div>';
-=======
     foreach ($selectedMessages as $message) {
         $attachments = $messageAttachments[(int)$message['id']] ?? [];
         $publicMessagesHtml .= ticketPdfMessageCard(
@@ -816,7 +557,6 @@ if (!$includePublic) {
             0,
             true
         );
->>>>>>> fbc9f0c (Actualización de módulos y configuración del sistema)
     }
 }
 
@@ -826,23 +566,6 @@ if (!$includeInternal) {
 } elseif (empty($selectedInternalMessages)) {
     $internalMessagesHtml = '<div class="empty-state">No hay mensajes internos registrados.</div>';
 } else {
-<<<<<<< HEAD
-    foreach ($internalMessages as $message) {
-        $attachments = $internalMessageAttachments[(int)$message['id']] ?? [];
-
-        $internalHtml .= '<div class="message-box internal-message-box">
-            <div class="avatar internal-avatar">' . e_pdf(pdfInitials($message['name'] ?? '')) . '</div>
-            <div class="message-content">
-                <div class="message-head">
-                    <strong>' . e_pdf($message['name'] ?? 'Usuario') . '</strong>
-                    <span>' . e_pdf(pdfRoleLabel($message['role'] ?? '')) . '</span>
-                    <em>' . e_pdf(pdfDate($message['created_at'] ?? null)) . '</em>
-                </div>'
-                . pdfRenderMessageBody($message, $attachments)
-                . pdfRenderMessageDocuments($attachments)
-            . '</div>
-        </div>';
-=======
     $internalCards = [];
 
     foreach ($selectedInternalMessages as $message) {
@@ -885,7 +608,6 @@ if (!$includeActivity) {
             . ' y '
             . ticketPdfEscape(date('H:i', strtotime((string)($lastGrouped['created_at'] ?? 'now'))))
             . '.</span></div>';
->>>>>>> fbc9f0c (Actualización de módulos y configuración del sistema)
     }
 }
 
@@ -990,78 +712,6 @@ ob_start();
 <head>
 <meta charset="UTF-8">
 <style>
-<<<<<<< HEAD
-    @page { margin: 22px 24px 26px; }
-    body { font-family: DejaVu Sans, sans-serif; color: #0f172a; font-size: 11px; line-height: 1.45; }
-    .header { width: 100%; border-radius: 18px; background: #0f3d2e; color: #ffffff; padding: 18px 20px; box-sizing: border-box; }
-    .header-table { width: 100%; border-collapse: collapse; }
-    .header-title { font-size: 20px; font-weight: 800; margin: 0 0 5px; }
-    .header-sub { color: #d7e3dd; margin: 0; font-size: 11px; }
-    .logo-cell { text-align: right; vertical-align: middle; width: 180px; }
-    .logo { max-width: 155px; max-height: 64px; }
-    .logo-fallback { display: inline-block; border: 1px solid rgba(255,255,255,0.28); border-radius: 12px; padding: 8px 12px; font-weight: 900; color: #ffffff; }
-    .meta { margin-top: 10px; color: #64748b; font-size: 10px; text-align: right; }
-    .section { margin-top: 14px; page-break-inside: avoid; }
-    .section.breakable { page-break-inside: auto; }
-    .section-title { margin: 0 0 8px; padding: 8px 10px; border-left: 5px solid #ff7a00; border-radius: 9px; background: #eef6f2; color: #0f3d2e; font-size: 13px; font-weight: 900; }
-    .ticket-summary { border: 1px solid #dbe3ec; border-radius: 16px; padding: 14px; background: #ffffff; }
-    .ticket-code { display: inline-block; padding: 5px 9px; border-radius: 999px; background: #fff7ed; color: #9a3412; font-weight: 900; margin-bottom: 8px; }
-    .ticket-subject { margin: 0 0 6px; font-size: 18px; color: #0f172a; }
-    .ticket-description { margin: 0; color: #334155; }
-    .badge { display: inline-block; padding: 5px 9px; border-radius: 999px; font-weight: 900; font-size: 10px; }
-    .badge-status { background: #eef6f2; color: #0f3d2e; border: 1px solid #cfe7db; }
-    .badge-priority { background: #fff7ed; color: #9a3412; border: 1px solid #fed7aa; }
-    .badge-success { background: #ecfdf5; color: #166534; border: 1px solid #bbf7d0; }
-    .badge-danger { background: #fef2f2; color: #b91c1c; border: 1px solid #fecaca; }
-    .badge-pending { background: #fff7ed; color: #9a3412; border: 1px solid #fed7aa; }
-    .info-grid { width: 100%; border-collapse: separate; border-spacing: 8px; margin-left: -8px; }
-    .info-grid td, .info-item { border: 1px solid #e7edf4; border-radius: 12px; background: #f8fafc; padding: 10px; vertical-align: top; }
-    .info-grid span, .info-item span { display: block; color: #64748b; font-size: 10px; font-weight: 800; margin-bottom: 4px; }
-    .info-grid strong, .info-item strong { color: #0f172a; font-size: 11px; }
-    .three { display: block; }
-    .full { margin-top: 8px; }
-    .metrics-table { width: 100%; border-collapse: separate; border-spacing: 8px; margin-left: -8px; }
-    .metric { border: 1px solid #dbe3ec; border-radius: 14px; padding: 10px; text-align: center; background: #ffffff; }
-    .metric span { display: block; color: #64748b; font-size: 10px; font-weight: 800; margin-bottom: 5px; }
-    .metric strong { display: block; color: #0f3d2e; font-size: 15px; font-weight: 900; }
-    .message-box { display: table; width: 100%; margin-bottom: 8px; border: 1px solid #e7edf4; border-radius: 14px; background: #ffffff; page-break-inside: avoid; }
-    .avatar { display: table-cell; width: 38px; padding: 10px; vertical-align: top; }
-    .avatar::after { content: attr(data-initials); }
-    .message-box .avatar { color: #ffffff; font-weight: 900; text-align: center; }
-    .message-box .avatar { background: #0f3d2e; }
-    .message-content { display: table-cell; padding: 9px 11px 9px 0; vertical-align: top; }
-    .message-head { margin-bottom: 4px; }
-    .message-head strong { color: #0f172a; font-size: 11px; }
-    .message-head span { margin-left: 6px; padding: 2px 6px; border-radius: 999px; background: #eef6f2; color: #0f3d2e; font-size: 9px; font-weight: 900; }
-    .message-head em { float: right; color: #64748b; font-style: normal; font-size: 9px; }
-    .message-content p { margin: 0; color: #334155; }
-    .internal-message-box { border-left: 4px solid #ff7a00; background: #fffbf7; }
-    .internal-avatar { background: #ff7a00 !important; }
-    .data-table { width: 100%; border-collapse: collapse; }
-    .data-table th { background: #0f3d2e; color: #ffffff; text-align: left; padding: 7px; font-size: 10px; }
-    .data-table td { border: 1px solid #e7edf4; padding: 7px; vertical-align: top; }
-    .data-table tr:nth-child(even) td { background: #f8fafc; }
-    .empty-box { padding: 12px; border: 1px dashed #cbd5e1; border-radius: 12px; background: #f8fafc; color: #64748b; text-align: center; }
-    .footer { position: fixed; left: 24px; right: 24px; bottom: 9px; color: #94a3b8; font-size: 9px; text-align: center; }
-
-    .pdf-rich-message { color: #334155; font-size: 10px; line-height: 1.5; }
-    .pdf-rich-message p, .pdf-rich-message div { margin: 0 0 6px; }
-    .pdf-rich-message h1, .pdf-rich-message h2, .pdf-rich-message h3 { color: #0f172a; margin: 8px 0 5px; }
-    .pdf-rich-message h1 { font-size: 18px; }
-    .pdf-rich-message h2 { font-size: 15px; }
-    .pdf-rich-message h3 { font-size: 13px; }
-    .pdf-rich-message ul, .pdf-rich-message ol { margin: 5px 0 7px 18px; padding: 0; }
-    .pdf-rich-message blockquote { margin: 6px 0; padding: 6px 8px; border-left: 3px solid #ff7a00; background: #fff8f1; }
-    .pdf-rich-message pre { padding: 7px; border-radius: 7px; background: #111827; color: #f8fafc; white-space: pre-wrap; }
-    .pdf-rich-message img { display: block; max-width: 470px; max-height: 340px; margin: 7px 0; border: 1px solid #dbe3ec; border-radius: 9px; }
-    .pdf-attachments { margin-top: 7px; }
-    .pdf-attachment { display: table; width: 100%; margin-top: 4px; padding: 6px 8px; border: 1px solid #dbe3ec; border-radius: 8px; background: #f8fafc; box-sizing: border-box; }
-    .pdf-attachment strong, .pdf-attachment span, .pdf-attachment em { display: table-cell; vertical-align: middle; }
-    .pdf-attachment strong { width: 42px; color: #0f5132; font-size: 8px; }
-    .pdf-attachment span { color: #334155; font-size: 9px; }
-    .pdf-attachment em { width: 70px; color: #64748b; font-size: 8px; font-style: normal; text-align: right; }
-
-=======
     @page { margin: 13px 15px 27px; }
     * { box-sizing: border-box; }
     body {
@@ -1819,7 +1469,6 @@ ob_start();
         color: #88929f;
         font-size: 6px;
     }
->>>>>>> fbc9f0c (Actualización de módulos y configuración del sistema)
 </style>
 </head>
 <body>
@@ -1875,29 +1524,6 @@ ob_start();
     </tr></table>
 </div>
 
-<<<<<<< HEAD
-<div class="section">
-    <div class="section-title">Indicadores operativos</div>
-    <table class="metrics-table"><tr>
-        <td class="metric"><span>Contrato / objetivo</span><strong>' . e_pdf($slaTimer['contract_label'] ?? 'Contrato 8/5') . ' · ' . e_pdf(formatSlaDuration($ticket['sla_hours'] ?? 0)) . '</strong></td>
-        <td class="metric"><span>Tiempo de respuesta (TTA)</span><strong>' . e_pdf($ttaLabel) . '</strong></td>
-        <td class="metric"><span>Tiempo de resolución (TTR)</span><strong>' . e_pdf($ttrLabel) . '</strong></td>
-        <td class="metric"><span>Cumplimiento SLA</span><strong>' . e_pdf($slaLabel) . '</strong></td>
-    </tr></table>
-</div>
-
-<div class="section">
-    <div class="section-title">Información del cliente</div>
-    <table class="info-grid"><tr>
-        <td><span>Nombre</span><strong>' . e_pdf($ticket['requester_name'] ?? 'No registrado') . '</strong></td>
-        <td><span>Correo</span><strong>' . e_pdf($ticket['requester_email'] ?? 'No registrado') . '</strong></td>
-        <td><span>Teléfono</span><strong>' . e_pdf($ticket['requester_phone'] ?? 'No registrado') . '</strong></td>
-    </tr><tr>
-        <td><span>Cargo</span><strong>' . e_pdf($ticket['requester_position'] ?? 'No registrado') . '</strong></td>
-        <td><span>Empresa</span><strong>' . e_pdf($ticket['company_business_name'] ?? $ticket['requester_company'] ?? 'No registrado') . '</strong></td>
-        <td><span>Tickets del cliente</span><strong>' . (int)($clientStats['total_tickets'] ?? 0) . ' total / ' . (int)($clientStats['open_tickets'] ?? 0) . ' activos / ' . (int)($clientStats['closed_tickets'] ?? 0) . ' cerrados</strong></td>
-    </tr></table>
-=======
 <div class="section-block keep-short">
     <div class="section-heading">
         <span class="section-number">02</span><span class="section-copy"><strong>Información del caso</strong><span>Responsables, fechas y clasificación.</span></span>
@@ -1930,7 +1556,6 @@ ob_start();
         <div class="client-contact"><strong><?= ticketPdfEscape($ticket['requester_email'] ?? 'Sin correo') ?></strong><span><?= ticketPdfEscape($ticket['requester_phone'] ?? 'Sin teléfono') ?></span></div>
         <div class="client-contract"><strong><?= ticketPdfEscape($slaTimer['contract_label'] ?? 'Contrato 8/5') ?></strong><span>Objetivo <?= ticketPdfEscape(formatSlaDuration((float)($ticket['sla_hours'] ?? 0))) ?></span><span><?= (int)($clientStats['total_tickets'] ?? 0) ?> tickets del cliente</span></div>
     </div>
->>>>>>> fbc9f0c (Actualización de módulos y configuración del sistema)
 </div>
 
 <div class="section-block keep-short">

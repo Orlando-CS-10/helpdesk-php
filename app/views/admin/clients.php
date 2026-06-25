@@ -6,12 +6,9 @@ $clients = $clients ?? [];
 $summary = $summary ?? [];
 $companyModuleReady = $companyModuleReady ?? false;
 $canManageClients = $canManageClients ?? false;
-<<<<<<< HEAD
-=======
 $companyLogoColumnReady = $companyLogoColumnReady ?? false;
 $slaProfilesReady = $slaProfilesReady ?? false;
 $availableSlaProfiles = $availableSlaProfiles ?? [];
->>>>>>> fbc9f0c (Actualización de módulos y configuración del sistema)
 
 $title = 'Clientes / Empresas';
 $activePage = 'clients';
@@ -34,8 +31,6 @@ function clientCompanyDisplayName(array $client): string
     return $tradeName !== '' ? $tradeName : $businessName;
 }
 
-<<<<<<< HEAD
-=======
 function clientCompanyInitials(string $name): string
 {
     $name = trim($name);
@@ -71,7 +66,6 @@ function clientCompanyLogoUrl(array $client): ?string
     return '/helpdesk-php/' . ltrim($logoPath, '/');
 }
 
->>>>>>> fbc9f0c (Actualización de módulos y configuración del sistema)
 function clientCompanySlaLabel(?string $contract): string
 {
     return match ($contract) {
@@ -90,8 +84,6 @@ function clientCompanySlaHelp(?string $contract): string
     };
 }
 
-<<<<<<< HEAD
-=======
 function clientCompanySlaProfileName(array $client): string
 {
     $profileName = trim((string)($client['sla_profile_name'] ?? ''));
@@ -112,7 +104,6 @@ function clientCompanySlaProfileHelp(array $client): string
     return clientCompanySlaHelp($client['sla_contract_type'] ?? null);
 }
 
->>>>>>> fbc9f0c (Actualización de módulos y configuración del sistema)
 require_once __DIR__ . '/../layouts/header.php';
 ?>
 
@@ -137,8 +128,6 @@ require_once __DIR__ . '/../layouts/header.php';
                 <?php unset($_SESSION['client_error']); ?>
             <?php endif; ?>
 
-<<<<<<< HEAD
-=======
             <?php if ($companyModuleReady && !$companyLogoColumnReady && $canManageClients): ?>
                 <section class="card admin-alert-card admin-alert-warning">
                     <strong>Los logos todavía no están habilitados.</strong>
@@ -146,7 +135,6 @@ require_once __DIR__ . '/../layouts/header.php';
                 </section>
             <?php endif; ?>
 
->>>>>>> fbc9f0c (Actualización de módulos y configuración del sistema)
             <?php if (empty($companyModuleReady)): ?>
                 <section class="card admin-alert-card admin-alert-warning">
                     <h3>Tabla de empresas no encontrada</h3>
@@ -240,18 +228,6 @@ require_once __DIR__ . '/../layouts/header.php';
 
                     <?php if (!empty($clients)): ?>
                         <div class="tickets-table-wrapper">
-<<<<<<< HEAD
-                            <table class="tickets-table admin-clients-table">
-                                <thead>
-                                    <tr>
-                                        <th>Empresa</th>
-                                        <th>RUC</th>
-                                        <th>Contacto corporativo</th>
-                                        <th>Contrato SLA</th>
-                                        <th>Contactos</th>
-                                        <th>Tickets</th>
-                                        <th>Estado</th>
-=======
                             <table class="tickets-table admin-clients-table admin-clients-table-redesign">
                                 <thead>
                                     <tr>
@@ -259,7 +235,6 @@ require_once __DIR__ . '/../layouts/header.php';
                                         <th>Contacto corporativo</th>
                                         <th>Servicio</th>
                                         <th>Actividad</th>
->>>>>>> fbc9f0c (Actualización de módulos y configuración del sistema)
                                         <th>Registro</th>
                                         <th>Acciones</th>
                                     </tr>
@@ -276,58 +251,6 @@ require_once __DIR__ . '/../layouts/header.php';
                                             $ticketsCount = (int)($client['tickets_count'] ?? 0);
                                             $openTicketsCount = (int)($client['open_tickets_count'] ?? 0);
                                             $ruc = trim((string)($client['ruc'] ?? ''));
-<<<<<<< HEAD
-                                        ?>
-                                        <tr>
-                                            <td class="admin-client-company-cell">
-                                                <strong><?= htmlspecialchars($displayName !== '' ? $displayName : '-') ?></strong>
-                                                <?php if (!empty($client['business_name']) && $client['business_name'] !== $displayName): ?>
-                                                    <span><?= htmlspecialchars($client['business_name']) ?></span>
-                                                <?php endif; ?>
-                                                <?php if (!empty($client['fiscal_address'])): ?>
-                                                    <small><?= htmlspecialchars($client['fiscal_address']) ?></small>
-                                                <?php endif; ?>
-                                            </td>
-                                            <td><?= $ruc !== '' ? htmlspecialchars($ruc) : '-' ?></td>
-                                            <td>
-                                                <?php if (!empty($client['email'])): ?>
-                                                    <strong><?= htmlspecialchars($client['email']) ?></strong><br>
-                                                <?php endif; ?>
-                                                <span><?= !empty($client['phone']) ? htmlspecialchars($client['phone']) : '-' ?></span>
-                                            </td>
-                                            <td>
-                                                <span class="metric-pill <?= $contract === '24_7' ? 'success-pill' : 'neutral-pill' ?>">SLA <?= htmlspecialchars($contractLabel) ?></span>
-                                                <small class="admin-client-help-text"><?= htmlspecialchars($contractHelp) ?></small>
-                                            </td>
-                                            <td>
-                                                <a class="admin-client-count-link" href="/helpdesk-php/admin-users.php?search=<?= urlencode($ruc !== '' ? $ruc : $displayName) ?>">
-                                                    <?= $contactsCount ?> contacto<?= $contactsCount === 1 ? '' : 's' ?>
-                                                </a>
-                                            </td>
-                                            <td>
-                                                <strong><?= $ticketsCount ?></strong>
-                                                <small class="admin-client-help-text"><?= $openTicketsCount ?> abiertos</small>
-                                            </td>
-                                            <td>
-                                                <?php if ((int)($client['status'] ?? 0) === 1): ?>
-                                                    <span class="metric-pill success-pill">Activo</span>
-                                                <?php else: ?>
-                                                    <span class="metric-pill danger-pill">Inactivo</span>
-                                                <?php endif; ?>
-                                            </td>
-                                            <td><?= !empty($client['created_at']) ? date('d/m/Y', strtotime($client['created_at'])) : '-' ?></td>
-                                            <td>
-                                                <div class="admin-client-actions">
-                                                    <?php if ($canManageClients): ?>
-                                                        <button type="button" class="ticket-link-btn" data-open-client-modal="editClientCompanyModal<?= $clientId ?>">
-                                                            Editar
-                                                        </button>
-                                                        <a href="/helpdesk-php/toggle-client-company.php?id=<?= $clientId ?>" class="<?= (int)($client['status'] ?? 0) === 1 ? 'btn-secondary' : 'btn-primary' ?>">
-                                                            <?= (int)($client['status'] ?? 0) === 1 ? 'Desactivar' : 'Activar' ?>
-                                                        </a>
-                                                    <?php else: ?>
-                                                        <span class="metric-pill neutral-pill">Solo lectura</span>
-=======
                                             $isActive = (int)($client['status'] ?? 0) === 1;
                                             $registeredAt = !empty($client['created_at'])
                                                 ? date('d/m/Y', strtotime($client['created_at']))
@@ -469,7 +392,6 @@ require_once __DIR__ . '/../layouts/header.php';
                                                                 <span><?= $isActive ? 'Desactivar' : 'Activar' ?></span>
                                                             </a>
                                                         </div>
->>>>>>> fbc9f0c (Actualización de módulos y configuración del sistema)
                                                     <?php endif; ?>
                                                 </div>
                                             </td>
@@ -501,9 +423,6 @@ require_once __DIR__ . '/../layouts/header.php';
                 <button type="button" class="client-modal-close" data-close-client-modal="createClientCompanyModal">&times;</button>
             </div>
 
-<<<<<<< HEAD
-            <form action="/helpdesk-php/create-client-company.php" method="POST" class="client-company-form" autocomplete="off">
-=======
             <form action="/helpdesk-php/create-client-company.php" method="POST" enctype="multipart/form-data" class="client-company-form" autocomplete="off">
                 <div class="client-company-logo-editor">
                     <div class="client-company-logo-preview" id="createCompanyLogoPreview">
@@ -528,7 +447,6 @@ require_once __DIR__ . '/../layouts/header.php';
                     </div>
                 </div>
 
->>>>>>> fbc9f0c (Actualización de módulos y configuración del sistema)
                 <div class="client-company-grid">
                     <div class="form-group">
                         <label for="client_ruc">RUC</label>
@@ -543,13 +461,6 @@ require_once __DIR__ . '/../layouts/header.php';
                         <input type="text" id="client_trade_name" name="trade_name" placeholder="Ej. Ferreyros">
                     </div>
                     <div class="form-group">
-<<<<<<< HEAD
-                        <label for="client_sla_contract_type">Contrato SLA</label>
-                        <select id="client_sla_contract_type" name="sla_contract_type" required>
-                            <option value="8_5">8/5 - Horario laboral</option>
-                            <option value="24_7">24/7 - Atención continua</option>
-                        </select>
-=======
                         <?php if ($slaProfilesReady && $availableSlaProfiles): ?>
                             <label for="client_sla_profile_id">Perfil SLA</label>
                             <select id="client_sla_profile_id" name="sla_profile_id" required>
@@ -567,7 +478,6 @@ require_once __DIR__ . '/../layouts/header.php';
                                 <option value="24_7">24/7 - Atención continua</option>
                             </select>
                         <?php endif; ?>
->>>>>>> fbc9f0c (Actualización de módulos y configuración del sistema)
                     </div>
                     <div class="form-group client-company-full">
                         <label for="client_fiscal_address">Dirección fiscal</label>
@@ -603,10 +513,6 @@ require_once __DIR__ . '/../layouts/header.php';
                     <button type="button" class="client-modal-close" data-close-client-modal="editClientCompanyModal<?= $clientId ?>">&times;</button>
                 </div>
 
-<<<<<<< HEAD
-                <form action="/helpdesk-php/update-client-company.php" method="POST" class="client-company-form" autocomplete="off">
-                    <input type="hidden" name="id" value="<?= $clientId ?>">
-=======
                 <form action="/helpdesk-php/update-client-company.php" method="POST" enctype="multipart/form-data" class="client-company-form" autocomplete="off">
                     <input type="hidden" name="id" value="<?= $clientId ?>">
                     <?php
@@ -660,7 +566,6 @@ require_once __DIR__ . '/../layouts/header.php';
                         </div>
                     </div>
 
->>>>>>> fbc9f0c (Actualización de módulos y configuración del sistema)
                     <div class="client-company-grid">
                         <div class="form-group">
                             <label for="edit_ruc_<?= $clientId ?>">RUC</label>
@@ -675,13 +580,6 @@ require_once __DIR__ . '/../layouts/header.php';
                             <input type="text" id="edit_trade_name_<?= $clientId ?>" name="trade_name" value="<?= htmlspecialchars($client['trade_name'] ?? '') ?>">
                         </div>
                         <div class="form-group">
-<<<<<<< HEAD
-                            <label for="edit_sla_contract_type_<?= $clientId ?>">Contrato SLA</label>
-                            <select id="edit_sla_contract_type_<?= $clientId ?>" name="sla_contract_type" required>
-                                <option value="8_5" <?= ($client['sla_contract_type'] ?? '') === '8_5' ? 'selected' : '' ?>>8/5 - Horario laboral</option>
-                                <option value="24_7" <?= ($client['sla_contract_type'] ?? '') === '24_7' ? 'selected' : '' ?>>24/7 - Atención continua</option>
-                            </select>
-=======
                             <?php if ($slaProfilesReady && $availableSlaProfiles): ?>
                                 <label for="edit_sla_profile_id_<?= $clientId ?>">Perfil SLA</label>
                                 <select id="edit_sla_profile_id_<?= $clientId ?>" name="sla_profile_id" required>
@@ -699,7 +597,6 @@ require_once __DIR__ . '/../layouts/header.php';
                                     <option value="24_7" <?= ($client['sla_contract_type'] ?? '') === '24_7' ? 'selected' : '' ?>>24/7 - Atención continua</option>
                                 </select>
                             <?php endif; ?>
->>>>>>> fbc9f0c (Actualización de módulos y configuración del sistema)
                         </div>
                         <div class="form-group client-company-full">
                             <label for="edit_fiscal_address_<?= $clientId ?>">Dirección fiscal</label>
@@ -742,8 +639,6 @@ require_once __DIR__ . '/../layouts/header.php';
             document.body.classList.remove('modal-open');
         }
 
-<<<<<<< HEAD
-=======
         document.querySelectorAll('[data-company-logo-input]').forEach(function (input) {
             input.addEventListener('change', function () {
                 const file = input.files && input.files[0] ? input.files[0] : null;
@@ -803,7 +698,6 @@ require_once __DIR__ . '/../layouts/header.php';
             });
         });
 
->>>>>>> fbc9f0c (Actualización de módulos y configuración del sistema)
         document.querySelectorAll('[data-open-client-modal]').forEach(function (button) {
             button.addEventListener('click', function () {
                 openClientModal(button.getAttribute('data-open-client-modal'));
