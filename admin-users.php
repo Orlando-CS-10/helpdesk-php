@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/app/helpers/session.php';
 require_once __DIR__ . '/app/config/database.php';
+require_once __DIR__ . '/app/helpers/system_security.php';
 
 requireLogin();
 
@@ -169,6 +170,11 @@ $stmt = $pdo->prepare($sql);
 $stmt->execute($params);
 $users = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
+$securitySettings = getSystemSecuritySettings($pdo);
+$createUserCsrfToken = systemSecurityCsrfToken('create_user');
+$createUserPasswordMinimum = max(6, (int) ($securitySettings['min_password_length'] ?? 8));
+$createUserPasswordRules = systemSecurityPasswordRulesText($securitySettings);
+
 ob_start();
 require __DIR__ . '/app/views/admin/users.php';
 $pageContent = ob_get_clean();
@@ -250,6 +256,7 @@ if ($canCreateUsers) {
         </div>
 
         <form action="/helpdesk-php/create-user.php" method="POST" class="create-user-form" autocomplete="off">
+            <input type="hidden" name="csrf_token" value="' . htmlspecialchars($createUserCsrfToken, ENT_QUOTES, 'UTF-8') . '">
             ' . $fixedRoleNotice . '
 
             <div class="create-user-grid">
@@ -293,12 +300,16 @@ if ($canCreateUsers) {
 
                 <div class="create-user-field">
                     <label for="create_user_password">Contraseña</label>
-                    <input type="password" id="create_user_password" name="password" required minlength="6" placeholder="Mínimo 6 caracteres">
+                    <input type="password" id="create_user_password" name="password" required minlength="' . $createUserPasswordMinimum . '" placeholder="Mínimo ' . $createUserPasswordMinimum . ' caracteres">
                 </div>
 
                 <div class="create-user-field">
                     <label for="create_user_password_confirmation">Confirmar contraseña</label>
-                    <input type="password" id="create_user_password_confirmation" name="password_confirmation" required minlength="6" placeholder="Repite la contraseña">
+                    <input type="password" id="create_user_password_confirmation" name="password_confirmation" required minlength="' . $createUserPasswordMinimum . '" placeholder="Repite la contraseña">
+                </div>
+
+                <div class="create-user-field create-user-full">
+                    <small class="create-user-help"><strong>Política vigente:</strong> ' . htmlspecialchars($createUserPasswordRules, ENT_QUOTES, 'UTF-8') . '</small>
                 </div>
             </div>
 

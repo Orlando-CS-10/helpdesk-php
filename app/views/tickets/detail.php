@@ -318,15 +318,14 @@ require_once __DIR__ . '/../layouts/header.php';
                                     <span class="ticket-badge priority-badge">Prioridad: <?= htmlspecialchars($ticket['priority'] ?? 'N/D') ?></span>
 
                                     <?php if (!empty($canExportTicketPdf)): ?>
-                                        <a
-                                            href="/helpdesk-php/export-ticket-pdf.php?id=<?= (int)$ticket['id'] ?>"
+                                        <button
+                                            type="button"
                                             class="ticket-detail-export-btn"
-                                            target="_blank"
-                                            rel="noopener"
+                                            onclick="openTicketPdfModal()"
                                         >
                                             <i class="fa-solid fa-file-pdf"></i>
                                             Exportar PDF
-                                        </a>
+                                        </button>
                                     <?php endif; ?>
                                 </div>
                             </div>
@@ -782,6 +781,15 @@ require_once __DIR__ . '/../layouts/header.php';
                         data-elapsed-seconds="<?= (int)round(($slaTimer['elapsed_hours'] ?? 0) * 3600) ?>"
                         data-is-closed="<?= !empty($slaTimer['is_closed']) ? '1' : '0' ?>"
                         data-contract="<?= htmlspecialchars($slaTimer['contract_type'] ?? '8_5') ?>"
+<<<<<<< HEAD
+=======
+                        data-work-start-minutes="<?= systemSlaTimeToMinutes((string)($ticket['sla_work_start'] ?? '08:00:00')) ?>"
+                        data-work-end-minutes="<?= systemSlaTimeToMinutes((string)($ticket['sla_work_end'] ?? '17:00:00')) ?>"
+                        data-work-days="<?= htmlspecialchars((string)($ticket['sla_work_days'] ?? '1,2,3,4,5')) ?>"
+                        data-warning-percent="<?= (int)($slaTimer['warning_percent'] ?? 75) ?>"
+                        data-critical-percent="<?= (int)($slaTimer['critical_percent'] ?? 90) ?>"
+                        data-status-paused="<?= !empty($ticket['sla_pause_started_at']) ? '1' : '0' ?>"
+>>>>>>> fbc9f0c (Actualización de módulos y configuración del sistema)
                         data-is-running="<?= !empty($slaTimer['is_running']) ? '1' : '0' ?>"
                         title="<?= htmlspecialchars($slaTimer['tooltip'] ?? '') ?>"
                     >
@@ -1039,15 +1047,14 @@ require_once __DIR__ . '/../layouts/header.php';
                     <span class="ticket-badge priority-badge">Prioridad: <?= htmlspecialchars($ticket['priority'] ?? 'N/D') ?></span>
 
                     <?php if (!empty($canExportTicketPdf)): ?>
-                        <a
-                            href="/helpdesk-php/export-ticket-pdf.php?id=<?= (int)$ticket['id'] ?>"
+                        <button
+                            type="button"
                             class="ticket-detail-export-btn"
-                            target="_blank"
-                            rel="noopener"
+                            onclick="openTicketPdfModal()"
                         >
                             <i class="fa-solid fa-file-pdf"></i>
                             Exportar PDF
-                        </a>
+                        </button>
                     <?php endif; ?>
                 </div>
             </div>
@@ -1204,6 +1211,15 @@ require_once __DIR__ . '/../layouts/header.php';
                 data-elapsed-seconds="<?= (int)round(($slaTimer['elapsed_hours'] ?? 0) * 3600) ?>"
                 data-is-closed="<?= !empty($slaTimer['is_closed']) ? '1' : '0' ?>"
                 data-contract="<?= htmlspecialchars($slaTimer['contract_type'] ?? '8_5') ?>"
+<<<<<<< HEAD
+=======
+                data-work-start-minutes="<?= systemSlaTimeToMinutes((string)($ticket['sla_work_start'] ?? '08:00:00')) ?>"
+                data-work-end-minutes="<?= systemSlaTimeToMinutes((string)($ticket['sla_work_end'] ?? '17:00:00')) ?>"
+                data-work-days="<?= htmlspecialchars((string)($ticket['sla_work_days'] ?? '1,2,3,4,5')) ?>"
+                data-warning-percent="<?= (int)($slaTimer['warning_percent'] ?? 75) ?>"
+                data-critical-percent="<?= (int)($slaTimer['critical_percent'] ?? 90) ?>"
+                data-status-paused="<?= !empty($ticket['sla_pause_started_at']) ? '1' : '0' ?>"
+>>>>>>> fbc9f0c (Actualización de módulos y configuración del sistema)
                 data-is-running="<?= !empty($slaTimer['is_running']) ? '1' : '0' ?>"
                 title="<?= htmlspecialchars($slaTimer['tooltip'] ?? '') ?>">
                 <div class="sla-timer-header">
@@ -1708,7 +1724,11 @@ require_once __DIR__ . '/../layouts/header.php';
 
         <div class="custom-modal-footer">
             <button type="button" class="btn-secondary" onclick="closeCloseTicketModal()">Cancelar</button>
-            <a href="#" id="confirmCloseTicketBtn" class="btn-primary disabled-delete-btn">Aceptar</a>
+            <form action="/helpdesk-php/close-ticket.php" method="POST" id="closeTicketForm" style="margin:0;">
+                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars((string)($closeTicketCsrfToken ?? systemSlaCsrfToken())) ?>">
+                <input type="hidden" name="ticket_id" id="closeTicketFormId" value="">
+                <button type="submit" id="confirmCloseTicketBtn" class="btn-primary disabled-delete-btn" disabled>Aceptar</button>
+            </form>
         </div>
     </div>
 </div>
@@ -1753,6 +1773,152 @@ require_once __DIR__ . '/../layouts/header.php';
     </div>
 </div>
 
+<?php if (!empty($canExportTicketPdf)): ?>
+    <?php
+    $ticketPdfPublicCount = count($messages);
+    $ticketPdfActivityCount = count($activities);
+    $ticketPdfInternalCount = count($internalMessages);
+    $ticketPdfImageCount = 0;
+    $ticketPdfDocumentCount = 0;
+
+    foreach ([$messageAttachments, $internalMessageAttachments] as $attachmentMap) {
+        foreach ($attachmentMap as $attachments) {
+            foreach ($attachments as $attachment) {
+                if ((int)($attachment['is_inline'] ?? 0) === 1) {
+                    $ticketPdfImageCount++;
+                } else {
+                    $ticketPdfDocumentCount++;
+                }
+            }
+        }
+    }
+    ?>
+    <!-- ==========================================================
+         MODAL CONFIGURAR EXPORTACIÓN PDF
+         ========================================================== -->
+    <div class="modal-overlay" id="ticketPdfModal" aria-hidden="true">
+        <div class="custom-modal ticket-pdf-export-modal" role="dialog" aria-modal="true" aria-labelledby="ticketPdfModalTitle">
+            <div class="custom-modal-header ticket-pdf-modal-header">
+                <div>
+                    <span class="ticket-pdf-step">Paso 1</span>
+                    <h3 id="ticketPdfModalTitle">Exportar reporte del ticket #<?= (int)$ticket['id'] ?></h3>
+                    <p>Elige un reporte compacto para presentación o uno completo para auditoría.</p>
+                </div>
+                <button type="button" class="modal-close-btn" onclick="closeTicketPdfModal()" aria-label="Cerrar">×</button>
+            </div>
+
+            <form
+                action="/helpdesk-php/export-ticket-pdf.php"
+                method="GET"
+                target="_blank"
+                id="ticketPdfExportForm"
+                onsubmit="closeTicketPdfModal()"
+            >
+                <input type="hidden" name="id" value="<?= (int)$ticket['id'] ?>">
+
+                <div class="custom-modal-body ticket-pdf-modal-body">
+                    <div class="ticket-pdf-section-heading">
+                        <strong>Tipo de reporte</strong>
+                        <span>Selecciona el nivel de detalle que necesitas.</span>
+                    </div>
+
+                    <div class="ticket-pdf-type-grid" role="radiogroup" aria-label="Tipo de reporte">
+                        <label class="ticket-pdf-type-card is-selected" data-pdf-type-card="executive">
+                            <input type="radio" name="type" value="executive" checked>
+                            <span class="ticket-pdf-type-icon"><i class="fa-solid fa-bolt"></i></span>
+                            <span class="ticket-pdf-type-copy">
+                                <strong>Reporte ejecutivo</strong>
+                                <small>Resumen compacto, rápido y fácil de presentar.</small>
+                                <em>2 a 5 páginas</em>
+                            </span>
+                            <span class="ticket-pdf-radio-mark"></span>
+                        </label>
+
+                        <label class="ticket-pdf-type-card" data-pdf-type-card="full">
+                            <input type="radio" name="type" value="full">
+                            <span class="ticket-pdf-type-icon"><i class="fa-solid fa-list-check"></i></span>
+                            <span class="ticket-pdf-type-copy">
+                                <strong>Reporte completo</strong>
+                                <small>Trazabilidad íntegra para auditoría o revisión técnica.</small>
+                                <em>Extensión variable</em>
+                            </span>
+                            <span class="ticket-pdf-radio-mark"></span>
+                        </label>
+                    </div>
+
+                    <div class="ticket-pdf-executive-options" id="ticketPdfExecutiveOptions">
+                        <div class="ticket-pdf-section-heading compact">
+                            <strong>Contenido del reporte ejecutivo</strong>
+                            <span>Los límites mantienen el archivo ordenado y ligero.</span>
+                        </div>
+
+                        <div class="ticket-pdf-option-list">
+                            <label class="ticket-pdf-option">
+                                <input type="hidden" name="include_public" value="0">
+                                <input type="checkbox" name="include_public" value="1" checked>
+                                <span class="ticket-pdf-option-check"><i class="fa-solid fa-check"></i></span>
+                                <span><strong>Incluir conversación pública</strong><small>Últimos <?= min(8, $ticketPdfPublicCount) ?> de <?= $ticketPdfPublicCount ?> mensajes</small></span>
+                            </label>
+
+                            <label class="ticket-pdf-option">
+                                <input type="hidden" name="include_activity" value="0">
+                                <input type="checkbox" name="include_activity" value="1" checked>
+                                <span class="ticket-pdf-option-check"><i class="fa-solid fa-check"></i></span>
+                                <span><strong>Incluir actividad</strong><small>Últimos <?= min(15, $ticketPdfActivityCount) ?> de <?= $ticketPdfActivityCount ?> eventos; los críticos no se agrupan</small></span>
+                            </label>
+
+                            <label class="ticket-pdf-option">
+                                <input type="hidden" name="include_internal" value="0">
+                                <input type="checkbox" name="include_internal" value="1" checked>
+                                <span class="ticket-pdf-option-check"><i class="fa-solid fa-check"></i></span>
+                                <span><strong>Incluir conversación interna</strong><small>Últimos <?= min(5, $ticketPdfInternalCount) ?> de <?= $ticketPdfInternalCount ?> mensajes</small></span>
+                            </label>
+
+                            <label class="ticket-pdf-option">
+                                <input type="hidden" name="include_images" value="0">
+                                <input type="checkbox" name="include_images" value="1" checked>
+                                <span class="ticket-pdf-option-check"><i class="fa-solid fa-check"></i></span>
+                                <span><strong>Incluir miniaturas de imágenes</strong><small>Máximo 2 por mensaje · <?= $ticketPdfImageCount ?> disponibles</small></span>
+                            </label>
+
+                            <label class="ticket-pdf-option">
+                                <input type="hidden" name="include_documents" value="0">
+                                <input type="checkbox" name="include_documents" value="1" checked>
+                                <span class="ticket-pdf-option-check"><i class="fa-solid fa-check"></i></span>
+                                <span><strong>Incluir lista de documentos</strong><small>Solo nombre, tipo y tamaño · <?= $ticketPdfDocumentCount ?> disponibles</small></span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="ticket-pdf-full-note" id="ticketPdfFullNote" hidden>
+                        <i class="fa-solid fa-circle-info"></i>
+                        <div>
+                            <strong>El reporte completo incluirá toda la trazabilidad.</strong>
+                            <span>Se exportarán todos los mensajes, actividades, notas internas, imágenes y documentos registrados.</span>
+                        </div>
+                    </div>
+
+                    <div class="ticket-pdf-size-control">
+                        <span class="ticket-pdf-size-icon"><i class="fa-solid fa-compress"></i></span>
+                        <div>
+                            <strong>Control automático del tamaño</strong>
+                            <p>Los textos extensos se resumirán en el reporte ejecutivo. Las imágenes se mostrarán como miniaturas optimizadas y los documentos solo aparecerán listados.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="custom-modal-footer ticket-pdf-modal-footer">
+                    <button type="button" class="btn-secondary" onclick="closeTicketPdfModal()">Cancelar</button>
+                    <button type="submit" class="btn-primary ticket-pdf-generate-btn">
+                        <i class="fa-solid fa-file-arrow-down"></i>
+                        Generar PDF
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+<?php endif; ?>
+
 <script>
 
 /**
@@ -1788,23 +1954,40 @@ function fixedTimezoneParts(timestampMs, offsetSeconds) {
     };
 }
 
+<<<<<<< HEAD
 function isSlaScheduleRunning(timestampMs, contractType, offsetSeconds) {
+=======
+function isSlaScheduleRunning(timestampMs, contractType, offsetSeconds, workStartMinutes, workEndMinutes, workDays) {
+>>>>>>> fbc9f0c (Actualización de módulos y configuración del sistema)
     if (contractType === '24_7') {
         return true;
     }
 
     const parts = fixedTimezoneParts(timestampMs, offsetSeconds);
+<<<<<<< HEAD
 
     if (parts.weekday === 0 || parts.weekday === 6) {
+=======
+    const isoWeekday = parts.weekday === 0 ? 7 : parts.weekday;
+
+    if (!workDays.includes(isoWeekday)) {
+>>>>>>> fbc9f0c (Actualización de módulos y configuración del sistema)
         return false;
     }
 
     const currentMinutes = (parts.hour * 60) + parts.minute;
+<<<<<<< HEAD
 
     return currentMinutes >= (8 * 60) && currentMinutes < (17 * 60);
 }
 
 function businessSecondsBetween(startMs, endMs, offsetSeconds) {
+=======
+    return currentMinutes >= workStartMinutes && currentMinutes < workEndMinutes;
+}
+
+function businessSecondsBetween(startMs, endMs, offsetSeconds, workStartMinutes, workEndMinutes, workDays) {
+>>>>>>> fbc9f0c (Actualización de módulos y configuración del sistema)
     if (endMs <= startMs) {
         return 0;
     }
@@ -1829,6 +2012,7 @@ function businessSecondsBetween(startMs, endMs, offsetSeconds) {
     while (localDayCursor <= localEndDay) {
         const localDay = new Date(localDayCursor);
         const weekday = localDay.getUTCDay();
+<<<<<<< HEAD
 
         if (weekday !== 0 && weekday !== 6) {
             const year = localDay.getUTCFullYear();
@@ -1838,6 +2022,22 @@ function businessSecondsBetween(startMs, endMs, offsetSeconds) {
             const workStartMs = Date.UTC(year, month, day, 8, 0, 0)
                 - (offsetSeconds * 1000);
             const workEndMs = Date.UTC(year, month, day, 17, 0, 0)
+=======
+        const isoWeekday = weekday === 0 ? 7 : weekday;
+
+        if (workDays.includes(isoWeekday)) {
+            const year = localDay.getUTCFullYear();
+            const month = localDay.getUTCMonth();
+            const day = localDay.getUTCDate();
+            const workStartHour = Math.floor(workStartMinutes / 60);
+            const workStartMinute = workStartMinutes % 60;
+            const workEndHour = Math.floor(workEndMinutes / 60);
+            const workEndMinute = workEndMinutes % 60;
+
+            const workStartMs = Date.UTC(year, month, day, workStartHour, workStartMinute, 0)
+                - (offsetSeconds * 1000);
+            const workEndMs = Date.UTC(year, month, day, workEndHour, workEndMinute, 0)
+>>>>>>> fbc9f0c (Actualización de módulos y configuración del sistema)
                 - (offsetSeconds * 1000);
 
             const overlapStart = Math.max(startMs, workStartMs);
@@ -1896,6 +2096,18 @@ function updateSlaTimerCard(card) {
     const isClosed = card.dataset.isClosed === '1';
     const contractType = card.dataset.contract || '8_5';
     const timezoneOffset = Number(card.dataset.timezoneOffset || -18000);
+<<<<<<< HEAD
+=======
+    const workStartMinutes = Number(card.dataset.workStartMinutes || 480);
+    const workEndMinutes = Number(card.dataset.workEndMinutes || 1020);
+    const workDays = String(card.dataset.workDays || '1,2,3,4,5')
+        .split(',')
+        .map(value => Number(value))
+        .filter(value => value >= 1 && value <= 7);
+    const warningPercent = Number(card.dataset.warningPercent || 75);
+    const criticalPercent = Number(card.dataset.criticalPercent || 90);
+    const statusPaused = card.dataset.statusPaused === '1';
+>>>>>>> fbc9f0c (Actualización de módulos y configuración del sistema)
     const slaSeconds = Math.max(0, Number(card.dataset.slaSeconds || 0));
     const baseElapsedSeconds = Math.max(
         0,
@@ -1905,7 +2117,11 @@ function updateSlaTimerCard(card) {
 
     let elapsedSeconds = baseElapsedSeconds;
 
+<<<<<<< HEAD
     if (!isClosed && slaSeconds > 0) {
+=======
+    if (!isClosed && !statusPaused && slaSeconds > 0) {
+>>>>>>> fbc9f0c (Actualización de módulos y configuración del sistema)
         if (contractType === '24_7') {
             elapsedSeconds += Math.max(
                 0,
@@ -1915,7 +2131,14 @@ function updateSlaTimerCard(card) {
             elapsedSeconds += businessSecondsBetween(
                 clientStartedAt,
                 nowMs,
+<<<<<<< HEAD
                 timezoneOffset
+=======
+                timezoneOffset,
+                workStartMinutes,
+                workEndMinutes,
+                workDays
+>>>>>>> fbc9f0c (Actualización de módulos y configuración del sistema)
             );
         }
     }
@@ -1923,7 +2146,14 @@ function updateSlaTimerCard(card) {
     const scheduleRunning = isSlaScheduleRunning(
         nowMs,
         contractType,
+<<<<<<< HEAD
         timezoneOffset
+=======
+        timezoneOffset,
+        workStartMinutes,
+        workEndMinutes,
+        workDays
+>>>>>>> fbc9f0c (Actualización de módulos y configuración del sistema)
     );
 
     const remainingSigned = slaSeconds - elapsedSeconds;
@@ -1945,14 +2175,26 @@ function updateSlaTimerCard(card) {
         phaseClass = card.dataset.initialPhaseClass || 'sla-phase-paused';
         label = card.dataset.initialPhaseLabel || 'Ticket cerrado';
         message = card.dataset.initialNote || 'El conteo del SLA finalizó.';
+<<<<<<< HEAD
     } else if (contractType !== '24_7' && !scheduleRunning) {
         phaseClass = 'sla-phase-paused';
         label = 'Conteo pausado';
         message = 'El contrato 8/5 está fuera del horario de lunes a viernes, 08:00 a 17:00.';
+=======
+    } else if (statusPaused) {
+        phaseClass = 'sla-phase-paused';
+        label = 'Conteo pausado';
+        message = 'El contador está pausado por el estado actual del ticket.';
+    } else if (contractType !== '24_7' && !scheduleRunning) {
+        phaseClass = 'sla-phase-paused';
+        label = 'Conteo pausado';
+        message = 'El contador está fuera del horario de atención configurado.';
+>>>>>>> fbc9f0c (Actualización de módulos y configuración del sistema)
     } else if (rawPercent >= 100) {
         phaseClass = 'sla-phase-red';
         label = 'SLA vencido';
         message = 'El tiempo objetivo fue superado y el ticket requiere atención prioritaria.';
+<<<<<<< HEAD
     } else if (rawPercent >= 75) {
         phaseClass = 'sla-phase-yellow';
         label = 'Próximo a vencer';
@@ -1961,6 +2203,16 @@ function updateSlaTimerCard(card) {
         phaseClass = 'sla-phase-yellow';
         label = 'En seguimiento';
         message = 'El ticket consumió más de la mitad del SLA.';
+=======
+    } else if (rawPercent >= criticalPercent) {
+        phaseClass = 'sla-phase-yellow';
+        label = 'Alerta crítica';
+        message = 'El ticket alcanzó el nivel crítico del SLA.';
+    } else if (rawPercent >= warningPercent) {
+        phaseClass = 'sla-phase-yellow';
+        label = 'Próximo a vencer';
+        message = 'El ticket está cerca de consumir el tiempo objetivo.';
+>>>>>>> fbc9f0c (Actualización de módulos y configuración del sistema)
     }
 
     badge.className = 'sla-timer-badge ' + phaseClass;
@@ -1997,6 +2249,67 @@ window.addEventListener('pageshow', updateAllSlaTimers);
 
 let deleteMessageId = null;
 let closeTicketId = null;
+
+function updateTicketPdfType() {
+    const selected = document.querySelector('#ticketPdfExportForm input[name="type"]:checked');
+    const type = selected?.value || 'executive';
+    const options = document.getElementById('ticketPdfExecutiveOptions');
+    const fullNote = document.getElementById('ticketPdfFullNote');
+
+    document.querySelectorAll('[data-pdf-type-card]').forEach(function (card) {
+        card.classList.toggle('is-selected', card.dataset.pdfTypeCard === type);
+    });
+
+    if (options) {
+        options.hidden = type !== 'executive';
+    }
+
+    if (fullNote) {
+        fullNote.hidden = type !== 'full';
+    }
+}
+
+function openTicketPdfModal() {
+    const modal = document.getElementById('ticketPdfModal');
+    if (!modal) return;
+
+    updateTicketPdfType();
+    modal.classList.add('show');
+    modal.setAttribute('aria-hidden', 'false');
+    document.body.classList.add('ticket-pdf-modal-open');
+
+    window.setTimeout(function () {
+        modal.querySelector('input[name="type"]:checked')?.focus();
+    }, 40);
+}
+
+function closeTicketPdfModal() {
+    const modal = document.getElementById('ticketPdfModal');
+    if (!modal) return;
+
+    modal.classList.remove('show');
+    modal.setAttribute('aria-hidden', 'true');
+    document.body.classList.remove('ticket-pdf-modal-open');
+}
+
+document.querySelectorAll('#ticketPdfExportForm input[name="type"]').forEach(function (radio) {
+    radio.addEventListener('change', updateTicketPdfType);
+});
+
+const ticketPdfModal = document.getElementById('ticketPdfModal');
+if (ticketPdfModal) {
+    ticketPdfModal.addEventListener('click', function (event) {
+        if (event.target === ticketPdfModal) {
+            closeTicketPdfModal();
+        }
+    });
+}
+
+document.addEventListener('keydown', function (event) {
+    if (event.key === 'Escape' && document.getElementById('ticketPdfModal')?.classList.contains('show')) {
+        closeTicketPdfModal();
+    }
+});
 
 /**
  * Mostrar/ocultar menú del usuario admin
@@ -2140,12 +2453,14 @@ function openCloseTicketModal(ticketId) {
     const modal = document.getElementById('closeTicketModal');
     const checkbox = document.getElementById('confirmCloseTicketCheckbox');
     const confirmBtn = document.getElementById('confirmCloseTicketBtn');
+    const ticketInput = document.getElementById('closeTicketFormId');
 
-    if (!modal || !checkbox || !confirmBtn) return;
+    if (!modal || !checkbox || !confirmBtn || !ticketInput) return;
 
     checkbox.checked = false;
+    ticketInput.value = String(ticketId);
     confirmBtn.classList.add('disabled-delete-btn');
-    confirmBtn.removeAttribute('href');
+    confirmBtn.disabled = true;
     modal.classList.add('show');
 }
 
@@ -2163,10 +2478,10 @@ function toggleCloseTicketButton() {
 
     if (checkbox.checked && closeTicketId) {
         confirmBtn.classList.remove('disabled-delete-btn');
-        confirmBtn.setAttribute('href', '/helpdesk-php/close-ticket.php?id=' + closeTicketId);
+        confirmBtn.disabled = false;
     } else {
         confirmBtn.classList.add('disabled-delete-btn');
-        confirmBtn.removeAttribute('href');
+        confirmBtn.disabled = true;
     }
 }
 
@@ -2204,6 +2519,7 @@ document.addEventListener('click', function (e) {
     const deleteModal = document.getElementById('deleteModal');
     const closeModal = document.getElementById('closeTicketModal');
     const allTicketsModal = document.getElementById('allClientTicketsModal');
+    const ticketPdfModal = document.getElementById('ticketPdfModal');
 
     if (editModal && editModal.classList.contains('show') && e.target === editModal) {
         closeEditMessageModal();
@@ -2219,6 +2535,10 @@ document.addEventListener('click', function (e) {
 
     if (allTicketsModal && allTicketsModal.classList.contains('show') && e.target === allTicketsModal) {
         closeAllClientTicketsModal();
+    }
+
+    if (ticketPdfModal && ticketPdfModal.classList.contains('show') && e.target === ticketPdfModal) {
+        closeTicketPdfModal();
     }
 
     const menu = document.querySelector('.admin-user-menu');

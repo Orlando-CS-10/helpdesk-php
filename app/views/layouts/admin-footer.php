@@ -6,12 +6,14 @@
         }
     }
 
-    function toggleAdminSidebar() {
-        const shell = document.querySelector('.admin-shell');
+    if (typeof window.toggleAdminSidebar !== 'function') {
+        window.toggleAdminSidebar = function () {
+            const shell = document.querySelector('.admin-shell');
 
-        if (shell) {
-            shell.classList.toggle('sidebar-collapsed');
-        }
+            if (shell) {
+                shell.classList.toggle('sidebar-collapsed');
+            }
+        };
     }
 
     document.addEventListener('click', function (event) {

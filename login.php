@@ -2,16 +2,46 @@
 require_once __DIR__ . '/app/config/database.php';
 require_once __DIR__ . '/app/controllers/AuthController.php';
 require_once __DIR__ . '/app/helpers/session.php';
+require_once __DIR__ . '/app/helpers/system_security.php';
 
 if (isLoggedIn()) {
+<<<<<<< HEAD
     header('Location: /helpdesk-php/index.php');
     exit;
+=======
+    $sessionCheck = enforceCurrentSecuritySession();
+
+    if (!empty($sessionCheck['valid'])) {
+        if (!empty($sessionCheck['force_password_change'])) {
+            header('Location: /helpdesk-php/change-password.php');
+        } else {
+            header('Location: /helpdesk-php/index.php');
+        }
+        exit;
+    }
+>>>>>>> fbc9f0c (Actualización de módulos y configuración del sistema)
 }
 
 $authController = new AuthController($pdo);
 $errorMessage = '';
+$noticeMessage = '';
+$loginCsrfToken = systemSecurityCsrfToken('login');
+
+$reasonMessages = [
+    'idle_timeout' => 'Tu sesión se cerró por inactividad. Ingresa nuevamente.',
+    'absolute_timeout' => 'Tu sesión alcanzó su duración máxima. Ingresa nuevamente.',
+    'revoked' => 'La sesión fue cerrada desde el panel de seguridad.',
+    'inactive_user' => 'La cuenta ya no tiene acceso al sistema.',
+    'expired' => 'La sesión venció. Ingresa nuevamente.',
+];
+
+$reason = trim((string) ($_GET['reason'] ?? ''));
+if (isset($reasonMessages[$reason])) {
+    $noticeMessage = $reasonMessages[$reason];
+}
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+<<<<<<< HEAD
     $email = trim($_POST['email'] ?? '');
     $password = trim($_POST['password'] ?? '');
 
@@ -20,6 +50,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!empty($result['success'])) {
         header('Location: /helpdesk-php/index.php');
         exit;
+=======
+    if (!systemSecurityVerifyCsrf($_POST['csrf_token'] ?? null, 'login')) {
+        $errorMessage = 'El formulario venció. Recarga la página e inténtalo nuevamente.';
+    } else {
+        $email = trim((string) ($_POST['email'] ?? ''));
+        $password = (string) ($_POST['password'] ?? '');
+
+        $result = $authController->login($email, $password);
+
+        if (!empty($result['success'])) {
+            if (!empty($result['force_password_change'])) {
+                header('Location: /helpdesk-php/change-password.php');
+            } else {
+                header('Location: /helpdesk-php/index.php');
+            }
+            exit;
+        }
+
+        $errorMessage = $result['message'] ?? 'No se pudo iniciar sesión.';
+>>>>>>> fbc9f0c (Actualización de módulos y configuración del sistema)
     }
 
     $errorMessage = $result['message'] ?? 'No se pudo iniciar sesión.';
@@ -72,6 +122,7 @@ $authCssVersion = file_exists($authCssPath) ? filemtime($authCssPath) : time();
                     </div>
                 </div>
 
+<<<<<<< HEAD
                 <?php if (!empty($errorMessage)): ?>
                     <div class="alert error login-alert">
                         <i class="fa-solid fa-circle-exclamation"></i>
@@ -80,6 +131,25 @@ $authCssVersion = file_exists($authCssPath) ? filemtime($authCssPath) : time();
                 <?php endif; ?>
 
                 <form method="POST" action="/helpdesk-php/login.php" class="login-form" autocomplete="off">
+=======
+                <?php if ($noticeMessage !== ''): ?>
+                    <div class="alert success login-alert">
+                        <i class="fa-solid fa-circle-info"></i>
+                        <span><?= htmlspecialchars($noticeMessage, ENT_QUOTES, 'UTF-8') ?></span>
+                    </div>
+                <?php endif; ?>
+
+                <?php if ($errorMessage !== ''): ?>
+                    <div class="alert error login-alert">
+                        <i class="fa-solid fa-circle-exclamation"></i>
+                        <span><?= htmlspecialchars($errorMessage, ENT_QUOTES, 'UTF-8') ?></span>
+                    </div>
+                <?php endif; ?>
+
+                <form method="POST" action="/helpdesk-php/login.php" class="login-form" autocomplete="off">
+                    <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($loginCsrfToken, ENT_QUOTES, 'UTF-8') ?>">
+
+>>>>>>> fbc9f0c (Actualización de módulos y configuración del sistema)
                     <div class="form-group login-input-group">
                         <label for="email">Correo</label>
                         <div class="login-input-wrap">
@@ -88,6 +158,10 @@ $authCssVersion = file_exists($authCssPath) ? filemtime($authCssPath) : time();
                                 type="email"
                                 id="email"
                                 name="email"
+<<<<<<< HEAD
+=======
+                                value="<?= htmlspecialchars((string) ($_POST['email'] ?? ''), ENT_QUOTES, 'UTF-8') ?>"
+>>>>>>> fbc9f0c (Actualización de módulos y configuración del sistema)
                                 placeholder="correo@empresa.com"
                                 autocomplete="email"
                                 required

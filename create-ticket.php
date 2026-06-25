@@ -8,6 +8,7 @@ require_once __DIR__ . '/app/config/database.php';
 require_once __DIR__ . '/app/helpers/notifications.php';
 require_once __DIR__ . '/app/helpers/ticket_activity.php';
 require_once __DIR__ . '/app/helpers/technician_assignment.php';
+require_once __DIR__ . '/app/helpers/system_sla.php';
 
 requireLogin();
 
@@ -49,16 +50,16 @@ if (!in_array($category, $allowedCategories, true)) {
     exit;
 }
 
-// SLA por prioridad
-$slaHours = 24;
-
-if ($priority === 'ALTA') {
-    $slaHours = 8;
-} elseif ($priority === 'MEDIA') {
-    $slaHours = 24;
-} elseif ($priority === 'BAJA') {
-    $slaHours = 48;
-}
+// Resolver el perfil SLA de la empresa y tomar una fotografía de sus reglas.
+$createdAt = (new DateTime('now', new DateTimeZone('America/Lima')))->format('Y-m-d H:i:s');
+$slaData = systemSlaResolveForRequester(
+    $pdo,
+    (int)$currentUser['id'],
+    $priority,
+    $createdAt
+);
+$slaHours = max(1, (int)ceil(((int)$slaData['ttr_minutes']) / 60));
+$companyId = $slaData['company_id'];
 
 /*
 |--------------------------------------------------------------------------
@@ -73,14 +74,12 @@ $assignedTo = $assignedTech ? (int)$assignedTech['id'] : null;
 $supportLevel = $assignedTech ? (int)$assignedTech['tech_level'] : 1;
 $initialStatus = $assignedTo !== null ? 'EN_PROCESO' : 'ABIERTO';
 
-// El SLA inicia desde el momento exacto de creación del ticket.
-$createdAt = (new DateTime('now', new DateTimeZone('America/Lima')))->format('Y-m-d H:i:s');
-
 try {
     $pdo->beginTransaction();
 
     $sql = "INSERT INTO tickets (
                 requester_id,
+                company_id,
                 assigned_to,
                 subject,
                 description,
@@ -96,6 +95,7 @@ try {
                 updated_at
             ) VALUES (
                 :requester_id,
+                :company_id,
                 :assigned_to,
                 :subject,
                 :description,
@@ -114,6 +114,12 @@ try {
     $stmt = $pdo->prepare($sql);
 
     $stmt->bindValue(':requester_id', (int)$currentUser['id'], PDO::PARAM_INT);
+
+    if ($companyId === null) {
+        $stmt->bindValue(':company_id', null, PDO::PARAM_NULL);
+    } else {
+        $stmt->bindValue(':company_id', (int)$companyId, PDO::PARAM_INT);
+    }
 
     if ($assignedTo === null) {
         $stmt->bindValue(':assigned_to', null, PDO::PARAM_NULL);
@@ -135,6 +141,40 @@ try {
     $stmt->execute();
 
     $createdTicketId = (int)$pdo->lastInsertId();
+
+    if (systemSlaColumnExists($pdo, 'tickets', 'sla_profile_id')) {
+        $slaUpdate = $pdo->prepare(
+            'UPDATE tickets SET
+                sla_profile_id = :profile_id,
+                sla_profile_name = :profile_name,
+                sla_schedule_type = :schedule_type,
+                sla_work_start = :work_start,
+                sla_work_end = :work_end,
+                sla_work_days = :work_days,
+                sla_warning_percent = :warning_percent,
+                sla_critical_percent = :critical_percent,
+                sla_tta_minutes = :tta_minutes,
+                sla_ttr_minutes = :ttr_minutes,
+                sla_tta_due_at = :tta_due_at,
+                sla_ttr_due_at = :ttr_due_at
+             WHERE id = :ticket_id'
+        );
+        $slaUpdate->execute([
+            'profile_id' => $slaData['profile_id'],
+            'profile_name' => $slaData['profile_name'],
+            'schedule_type' => $slaData['schedule_type'],
+            'work_start' => $slaData['work_start'],
+            'work_end' => $slaData['work_end'],
+            'work_days' => $slaData['work_days'],
+            'warning_percent' => $slaData['warning_percent'],
+            'critical_percent' => $slaData['critical_percent'],
+            'tta_minutes' => $slaData['tta_minutes'],
+            'ttr_minutes' => $slaData['ttr_minutes'],
+            'tta_due_at' => $slaData['tta_due_at'],
+            'ttr_due_at' => $slaData['ttr_due_at'],
+            'ticket_id' => $createdTicketId,
+        ]);
+    }
 
     // Registrar actividad de creación
     createTicketActivity(

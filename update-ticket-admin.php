@@ -2,6 +2,7 @@
 require_once __DIR__ . '/app/helpers/session.php';
 require_once __DIR__ . '/app/config/database.php';
 require_once __DIR__ . '/app/helpers/ticket_activity.php';
+require_once __DIR__ . '/app/helpers/system_sla.php';
 
 requireLogin();
 
@@ -247,6 +248,44 @@ try {
     $stmtUpdate->bindValue(':level_changed', $levelChanged ? 1 : 0, PDO::PARAM_INT);
     $stmtUpdate->bindValue(':ticket_id', $ticketId, PDO::PARAM_INT);
     $stmtUpdate->execute();
+
+    if (($ticket['status'] ?? '') !== $status) {
+        systemSlaSyncPauseState(
+            $pdo,
+            $ticketId,
+            (string)($ticket['status'] ?? ''),
+            $status,
+            date('Y-m-d H:i:s')
+        );
+    }
+
+    if ($status === 'CERRADO' && ($ticket['status'] ?? '') !== 'CERRADO') {
+        $closedAt = date('Y-m-d H:i:s');
+        $metricStmt = $pdo->prepare('SELECT * FROM tickets WHERE id = :id LIMIT 1');
+        $metricStmt->execute(['id' => $ticketId]);
+        $metricTicket = $metricStmt->fetch(PDO::FETCH_ASSOC) ?: $ticket;
+        $slaMetrics = systemSlaCloseMetrics($metricTicket, $closedAt);
+
+        $closeAssignments = [
+            'closed_at = :closed_at',
+            'sla_met = :sla_met',
+        ];
+        $closeParams = [
+            'closed_at' => $closedAt,
+            'sla_met' => $slaMetrics['met'],
+            'id' => $ticketId,
+        ];
+
+        if (systemSlaColumnExists($pdo, 'tickets', 'sla_ttr_met')) {
+            $closeAssignments[] = 'sla_ttr_met = :sla_ttr_met';
+            $closeParams['sla_ttr_met'] = $slaMetrics['met'];
+        }
+
+        $closeStmt = $pdo->prepare(
+            'UPDATE tickets SET ' . implode(', ', $closeAssignments) . ' WHERE id = :id'
+        );
+        $closeStmt->execute($closeParams);
+    }
 
     /*
     |--------------------------------------------------------------------------

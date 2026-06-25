@@ -5,6 +5,10 @@ require_once __DIR__ . '/app/config/database.php';
 require_once __DIR__ . '/app/helpers/notifications.php';
 require_once __DIR__ . '/app/helpers/ticket_activity.php';
 require_once __DIR__ . '/app/helpers/ticket_message_helper.php';
+<<<<<<< HEAD
+=======
+require_once __DIR__ . '/app/helpers/system_sla.php';
+>>>>>>> fbc9f0c (Actualización de módulos y configuración del sistema)
 
 requireLogin();
 
@@ -27,7 +31,11 @@ $currentRole = strtoupper((string)($currentUser['role'] ?? ''));
 
 if ($currentRole === 'CLIENT') {
     $ticketStatement = $pdo->prepare(
+<<<<<<< HEAD
         'SELECT id, requester_id, assigned_to, status, first_response_at, sla_hours
+=======
+        'SELECT *
+>>>>>>> fbc9f0c (Actualización de módulos y configuración del sistema)
          FROM tickets
          WHERE id = :ticket_id
            AND requester_id = :requester_id
@@ -39,7 +47,11 @@ if ($currentRole === 'CLIENT') {
     ]);
 } else {
     $ticketStatement = $pdo->prepare(
+<<<<<<< HEAD
         'SELECT id, requester_id, assigned_to, status, first_response_at, sla_hours
+=======
+        'SELECT *
+>>>>>>> fbc9f0c (Actualización de módulos y configuración del sistema)
          FROM tickets
          WHERE id = :ticket_id
          LIMIT 1'
@@ -149,6 +161,7 @@ try {
     }
 
     if (empty($ticket['first_response_at']) && $currentRole !== 'CLIENT') {
+<<<<<<< HEAD
         $firstResponseStatement = $pdo->prepare(
             'UPDATE tickets
              SET first_response_at = NOW()
@@ -156,6 +169,9 @@ try {
                AND first_response_at IS NULL'
         );
         $firstResponseStatement->execute(['ticket_id' => $ticketId]);
+=======
+        systemSlaMarkFirstResponse($pdo, $ticketId, $ticket, date('Y-m-d H:i:s'));
+>>>>>>> fbc9f0c (Actualización de módulos y configuración del sistema)
     }
 
     $newStatus = $currentRole === 'CLIENT'
@@ -173,6 +189,17 @@ try {
         'ticket_id' => $ticketId,
     ]);
 
+<<<<<<< HEAD
+=======
+    systemSlaSyncPauseState(
+        $pdo,
+        $ticketId,
+        (string)($ticket['status'] ?? ''),
+        $newStatus,
+        date('Y-m-d H:i:s')
+    );
+
+>>>>>>> fbc9f0c (Actualización de módulos y configuración del sistema)
     $activityDescription = match ($currentRole) {
         'CLIENT' => 'El cliente respondió en el ticket.',
         'ADMIN' => 'El administrador respondió en el ticket.',

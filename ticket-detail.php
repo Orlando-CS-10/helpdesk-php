@@ -313,5 +313,9 @@ $clientTicketsStatement->execute(['client_id' => (int)$ticket['requester_id']]);
 $clientTickets = $clientTicketsStatement->fetchAll(PDO::FETCH_ASSOC);
 
 $slaTimer = getSlaTimerData($ticket);
+<<<<<<< HEAD
+=======
+$closeTicketCsrfToken = systemSlaCsrfToken();
+>>>>>>> fbc9f0c (Actualización de módulos y configuración del sistema)
 
 require __DIR__ . '/app/views/tickets/detail.php';

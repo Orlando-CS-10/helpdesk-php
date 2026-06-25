@@ -3879,3 +3879,443 @@ button.message-edit-btn {
         max-width: 72px !important;
     }
 }
+<<<<<<< HEAD
+=======
+
+/* =========================================================
+   SELECTOR DE EXPORTACIÓN PDF DEL TICKET
+   ========================================================= */
+.ticket-detail-export-btn {
+    cursor: pointer;
+    font-family: inherit;
+}
+
+.ticket-detail-export-btn:focus-visible {
+    outline: 3px solid rgba(255, 122, 0, 0.28);
+    outline-offset: 3px;
+}
+
+body.ticket-pdf-modal-open {
+    overflow: hidden;
+}
+
+#ticketPdfModal {
+    padding: 18px;
+    background: rgba(10, 24, 20, 0.62);
+    backdrop-filter: blur(4px);
+}
+
+.ticket-pdf-export-modal {
+    width: min(900px, calc(100vw - 28px));
+    max-width: 900px;
+    max-height: calc(100vh - 36px);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    border-radius: 22px;
+    border: 1px solid rgba(15, 61, 46, 0.16);
+    box-shadow: 0 28px 70px rgba(15, 23, 42, 0.28);
+}
+
+.ticket-pdf-export-modal form {
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+.ticket-pdf-modal-header {
+    align-items: flex-start;
+    padding: 20px 24px;
+    background:
+        radial-gradient(circle at 92% 15%, rgba(255, 122, 0, 0.22), transparent 27%),
+        linear-gradient(135deg, #0f3d2e 0%, #164f3d 100%);
+}
+
+.ticket-pdf-modal-header > div {
+    min-width: 0;
+}
+
+.ticket-pdf-modal-header h3 {
+    margin: 5px 0 4px;
+    font-size: 23px;
+    line-height: 1.2;
+}
+
+.ticket-pdf-modal-header p {
+    margin: 0;
+    color: rgba(255, 255, 255, 0.76);
+    font-size: 13px;
+    line-height: 1.45;
+}
+
+.ticket-pdf-step {
+    display: inline-flex;
+    align-items: center;
+    min-height: 24px;
+    padding: 3px 9px;
+    border: 1px solid rgba(255, 255, 255, 0.22);
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.10);
+    color: #ffffff;
+    font-size: 10px;
+    font-weight: 900;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+}
+
+.ticket-pdf-modal-body {
+    min-height: 0;
+    overflow-y: auto;
+    padding: 20px 24px 18px;
+    background: #fbfcfd;
+}
+
+.ticket-pdf-section-heading {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 11px;
+}
+
+.ticket-pdf-section-heading.compact {
+    margin-top: 18px;
+}
+
+.ticket-pdf-section-heading strong {
+    color: #162235;
+    font-size: 14px;
+    font-weight: 900;
+}
+
+.ticket-pdf-section-heading span {
+    color: #7a8797;
+    font-size: 11px;
+    text-align: right;
+}
+
+.ticket-pdf-type-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+}
+
+.ticket-pdf-type-card {
+    position: relative;
+    display: grid;
+    grid-template-columns: 42px minmax(0, 1fr) 22px;
+    align-items: center;
+    gap: 12px;
+    min-height: 112px;
+    padding: 16px;
+    border: 1px solid #dbe4eb;
+    border-radius: 16px;
+    background: #ffffff;
+    cursor: pointer;
+    transition: border-color .18s ease, box-shadow .18s ease, transform .18s ease, background .18s ease;
+}
+
+.ticket-pdf-type-card:hover {
+    transform: translateY(-1px);
+    border-color: rgba(15, 61, 46, 0.35);
+    box-shadow: 0 12px 28px rgba(15, 23, 42, 0.08);
+}
+
+.ticket-pdf-type-card.is-selected {
+    border-color: #0f6a4b;
+    background: linear-gradient(180deg, #f8fcfa 0%, #f1f8f5 100%);
+    box-shadow: 0 0 0 3px rgba(15, 106, 75, 0.10);
+}
+
+.ticket-pdf-type-card > input {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.ticket-pdf-type-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 42px;
+    height: 42px;
+    border-radius: 13px;
+    background: #eef6f2;
+    color: #0f6a4b;
+    font-size: 17px;
+}
+
+.ticket-pdf-type-card[data-pdf-type-card="full"] .ticket-pdf-type-icon {
+    background: #fff3e8;
+    color: #d86412;
+}
+
+.ticket-pdf-type-copy {
+    min-width: 0;
+}
+
+.ticket-pdf-type-copy strong,
+.ticket-pdf-type-copy small,
+.ticket-pdf-type-copy em {
+    display: block;
+}
+
+.ticket-pdf-type-copy strong {
+    margin-bottom: 4px;
+    color: #172033;
+    font-size: 14px;
+    font-weight: 900;
+}
+
+.ticket-pdf-type-copy small {
+    color: #647286;
+    font-size: 11px;
+    line-height: 1.45;
+}
+
+.ticket-pdf-type-copy em {
+    margin-top: 8px;
+    color: #0f6a4b;
+    font-size: 10px;
+    font-style: normal;
+    font-weight: 900;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+}
+
+.ticket-pdf-radio-mark {
+    width: 20px;
+    height: 20px;
+    border: 2px solid #c7d1da;
+    border-radius: 50%;
+    background: #ffffff;
+    box-shadow: inset 0 0 0 4px #ffffff;
+}
+
+.ticket-pdf-type-card.is-selected .ticket-pdf-radio-mark {
+    border-color: #0f6a4b;
+    background: #0f6a4b;
+}
+
+.ticket-pdf-option-list {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 9px;
+}
+
+.ticket-pdf-option {
+    position: relative;
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    min-height: 64px;
+    padding: 11px 12px;
+    border: 1px solid #e0e7ed;
+    border-radius: 13px;
+    background: #ffffff;
+    cursor: pointer;
+    transition: border-color .16s ease, background .16s ease, transform .16s ease;
+}
+
+.ticket-pdf-option:hover {
+    transform: translateY(-1px);
+    border-color: rgba(255, 122, 0, 0.34);
+    background: #fffdfa;
+}
+
+.ticket-pdf-option > input[type="checkbox"] {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.ticket-pdf-option-check {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    margin-top: 1px;
+    border: 1px solid #cbd5df;
+    border-radius: 7px;
+    background: #ffffff;
+    color: transparent;
+    font-size: 10px;
+    transition: all .16s ease;
+}
+
+.ticket-pdf-option > input[type="checkbox"]:checked + .ticket-pdf-option-check {
+    border-color: #0f6a4b;
+    background: #0f6a4b;
+    color: #ffffff;
+    box-shadow: 0 5px 12px rgba(15, 106, 75, 0.20);
+}
+
+.ticket-pdf-option > span:last-child {
+    min-width: 0;
+}
+
+.ticket-pdf-option strong,
+.ticket-pdf-option small {
+    display: block;
+}
+
+.ticket-pdf-option strong {
+    color: #263349;
+    font-size: 11px;
+    font-weight: 900;
+    line-height: 1.35;
+}
+
+.ticket-pdf-option small {
+    margin-top: 3px;
+    color: #7a8797;
+    font-size: 9px;
+    line-height: 1.4;
+}
+
+.ticket-pdf-full-note {
+    display: flex;
+    align-items: flex-start;
+    gap: 11px;
+    margin-top: 18px;
+    padding: 14px;
+    border: 1px solid #d9e5df;
+    border-radius: 14px;
+    background: #f2f8f5;
+    color: #0f6a4b;
+}
+
+.ticket-pdf-full-note[hidden] {
+    display: none !important;
+}
+
+.ticket-pdf-full-note > i {
+    margin-top: 2px;
+    font-size: 16px;
+}
+
+.ticket-pdf-full-note strong,
+.ticket-pdf-full-note span {
+    display: block;
+}
+
+.ticket-pdf-full-note strong {
+    color: #164d3a;
+    font-size: 12px;
+}
+
+.ticket-pdf-full-note span {
+    margin-top: 3px;
+    color: #607367;
+    font-size: 10px;
+    line-height: 1.45;
+}
+
+.ticket-pdf-size-control {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    margin-top: 16px;
+    padding: 13px 14px;
+    border: 1px solid #f1dccb;
+    border-radius: 14px;
+    background: #fff9f4;
+}
+
+.ticket-pdf-size-icon {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    border-radius: 11px;
+    background: #ffead9;
+    color: #dd6814;
+}
+
+.ticket-pdf-size-control strong {
+    display: block;
+    margin-bottom: 3px;
+    color: #8b4516;
+    font-size: 11px;
+    font-weight: 900;
+    text-transform: uppercase;
+    letter-spacing: .03em;
+}
+
+.ticket-pdf-size-control p {
+    margin: 0 !important;
+    color: #775c49 !important;
+    font-size: 10px !important;
+    line-height: 1.5 !important;
+}
+
+.ticket-pdf-modal-footer {
+    flex: 0 0 auto;
+    padding: 14px 24px 18px;
+    background: #ffffff;
+}
+
+.ticket-pdf-generate-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    min-width: 150px;
+}
+
+@media (max-width: 760px) {
+    #ticketPdfModal {
+        padding: 10px;
+        align-items: flex-end;
+    }
+
+    .ticket-pdf-export-modal {
+        width: 100%;
+        max-height: calc(100vh - 20px);
+        border-radius: 20px 20px 12px 12px;
+    }
+
+    .ticket-pdf-modal-header,
+    .ticket-pdf-modal-body,
+    .ticket-pdf-modal-footer {
+        padding-left: 16px;
+        padding-right: 16px;
+    }
+
+    .ticket-pdf-modal-header h3 {
+        font-size: 19px;
+    }
+
+    .ticket-pdf-section-heading {
+        display: block;
+    }
+
+    .ticket-pdf-section-heading span {
+        display: block;
+        margin-top: 3px;
+        text-align: left;
+    }
+
+    .ticket-pdf-type-grid,
+    .ticket-pdf-option-list {
+        grid-template-columns: 1fr;
+    }
+
+    .ticket-pdf-type-card {
+        min-height: 96px;
+    }
+
+    .ticket-pdf-modal-footer {
+        flex-direction: column-reverse;
+    }
+
+    .ticket-pdf-modal-footer .btn-primary,
+    .ticket-pdf-modal-footer .btn-secondary {
+        width: 100%;
+    }
+}
+>>>>>>> fbc9f0c (Actualización de módulos y configuración del sistema)

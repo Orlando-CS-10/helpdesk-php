@@ -98,6 +98,16 @@ if ($canSeeSlaNotifications && isset($pdo) && $pdo instanceof PDO) {
 }
 
 $baseUrl = '/helpdesk-php';
+<<<<<<< HEAD
+=======
+$accountSettingsUrl = $currentRole === 'ADMIN'
+    ? $baseUrl . '/admin-settings.php'
+    : $baseUrl . '/settings.php';
+$accountSettingsTitle = $currentRole === 'ADMIN' ? 'Ajustes del sistema' : 'Ajustes';
+$accountSettingsDescription = $currentRole === 'ADMIN'
+    ? 'Identidad y configuración institucional'
+    : 'Preferencias y datos personales';
+>>>>>>> fbc9f0c (Actualización de módulos y configuración del sistema)
 $currentUrl = $_SERVER['REQUEST_URI'] ?? $baseUrl . '/index.php';
 $currentUrlEncoded = rawurlencode($currentUrl);
 ?>
@@ -358,13 +368,22 @@ $currentUrlEncoded = rawurlencode($currentUrl);
                 <div class="admin-user-dropdown-section admin-user-dropdown-account">
                     <span class="admin-user-dropdown-title">Cuenta</span>
 
+<<<<<<< HEAD
                     <a href="<?= htmlspecialchars($baseUrl, ENT_QUOTES, 'UTF-8') ?>/settings.php">
+=======
+                    <a href="<?= htmlspecialchars($accountSettingsUrl, ENT_QUOTES, 'UTF-8') ?>">
+>>>>>>> fbc9f0c (Actualización de módulos y configuración del sistema)
                         <svg viewBox="0 0 24 24" aria-hidden="true">
                             <path d="m19.4 13 .1-1-.1-1 2-1.6-2-3.4-2.4 1a8 8 0 0 0-1.7-1L15 3h-4l-.4 3a8 8 0 0 0-1.7 1l-2.4-1-2 3.4 2 1.6-.1 1 .1 1-2 1.6 2 3.4 2.4-1a8 8 0 0 0 1.7 1l.4 3h4l.4-3a8 8 0 0 0 1.7-1l2.4 1 2-3.4-2-1.6zM13 16a4 4 0 1 1 0-8 4 4 0 0 1 0 8z"/>
                         </svg>
                         <span>
+<<<<<<< HEAD
                             <strong>Ajustes</strong>
                             <small>Preferencias y datos personales</small>
+=======
+                            <strong><?= htmlspecialchars($accountSettingsTitle, ENT_QUOTES, 'UTF-8') ?></strong>
+                            <small><?= htmlspecialchars($accountSettingsDescription, ENT_QUOTES, 'UTF-8') ?></small>
+>>>>>>> fbc9f0c (Actualización de módulos y configuración del sistema)
                         </span>
                     </a>
                 </div>

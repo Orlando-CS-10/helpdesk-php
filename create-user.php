@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/app/helpers/session.php';
 require_once __DIR__ . '/app/config/database.php';
+require_once __DIR__ . '/app/helpers/system_security.php';
 
 requireLogin();
 
@@ -17,6 +18,14 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     header('Location: /helpdesk-php/admin-users.php');
     exit;
 }
+
+if (!systemSecurityVerifyCsrf($_POST['csrf_token'] ?? null, 'create_user')) {
+    $_SESSION['user_error'] = 'El formulario venció. Recarga la página e inténtalo nuevamente.';
+    header('Location: /helpdesk-php/admin-users.php');
+    exit;
+}
+
+$securitySettings = getSystemSecuritySettings($pdo);
 
 function redirectUsers(): void
 {
@@ -91,8 +100,13 @@ if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
     redirectUsers();
 }
 
-if (strlen($password) < 6) {
-    $_SESSION['user_error'] = 'La contraseña debe tener al menos 6 caracteres.';
+$passwordErrors = systemSecurityPasswordErrors($password, $securitySettings, [
+    'name' => $name,
+    'email' => $email,
+]);
+
+if ($passwordErrors) {
+    $_SESSION['user_error'] = implode(' ', $passwordErrors);
     redirectUsers();
 }
 
@@ -223,6 +237,11 @@ try {
     $hasStatus = tableColumnExists($pdo, 'users', 'status');
     $hasTechLevel = tableColumnExists($pdo, 'users', 'tech_level');
     $hasCreatedAt = tableColumnExists($pdo, 'users', 'created_at');
+<<<<<<< HEAD
+=======
+    $hasForcePasswordChange = tableColumnExists($pdo, 'users', 'force_password_change');
+    $hasPasswordChangedAt = tableColumnExists($pdo, 'users', 'password_changed_at');
+>>>>>>> fbc9f0c (Actualización de módulos y configuración del sistema)
 
     $columns = ['name', 'email', 'role', $passwordColumn, 'phone', 'position', 'company'];
     $placeholders = [':name', ':email', ':role', ':password', ':phone', ':position', ':company'];
@@ -260,6 +279,20 @@ try {
         $params['tech_level'] = $role === 'TECH' ? $techLevel : null;
     }
 
+<<<<<<< HEAD
+=======
+    if ($hasForcePasswordChange) {
+        $columns[] = 'force_password_change';
+        $placeholders[] = ':force_password_change';
+        $params['force_password_change'] = !empty($securitySettings['force_change_on_create']) ? 1 : 0;
+    }
+
+    if ($hasPasswordChangedAt) {
+        $columns[] = 'password_changed_at';
+        $placeholders[] = 'NOW()';
+    }
+
+>>>>>>> fbc9f0c (Actualización de módulos y configuración del sistema)
     if ($hasCreatedAt) {
         $columns[] = 'created_at';
         $placeholders[] = 'NOW()';
@@ -268,6 +301,20 @@ try {
     $sql = 'INSERT INTO users (`' . implode('`, `', $columns) . '`) VALUES (' . implode(', ', $placeholders) . ')';
     $stmt = $pdo->prepare($sql);
     $stmt->execute($params);
+<<<<<<< HEAD
+=======
+    $createdUserId = (int) $pdo->lastInsertId();
+
+    systemSecurityAudit(
+        $pdo,
+        'USER_CREATED',
+        'Se creó una nueva cuenta de usuario.',
+        $createdUserId,
+        (int) ($currentUser['id'] ?? 0),
+        'info',
+        ['role' => $role, 'force_password_change' => !empty($securitySettings['force_change_on_create'])]
+    );
+>>>>>>> fbc9f0c (Actualización de módulos y configuración del sistema)
 
     $pdo->commit();
 
