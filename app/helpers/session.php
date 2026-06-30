@@ -170,6 +170,34 @@ function requireLogin(): void
     }
 
     $currentScript = basename((string) parse_url($_SERVER['SCRIPT_NAME'] ?? '', PHP_URL_PATH));
+
+    // Modo mantenimiento global. Los administradores conservan el acceso
+    // para poder revisar y desactivar la ventana de mantenimiento.
+    $maintenanceAllowedScripts = ['maintenance.php', 'logout.php'];
+    if (!in_array($currentScript, $maintenanceAllowedScripts, true)) {
+        global $pdo;
+
+        try {
+            if (!isset($pdo) || !$pdo instanceof PDO) {
+                require __DIR__ . '/../config/database.php';
+            }
+
+            $maintenanceHelper = __DIR__ . '/system_maintenance.php';
+            if (is_file($maintenanceHelper)) {
+                require_once $maintenanceHelper;
+
+                if (isset($pdo) && $pdo instanceof PDO
+                    && function_exists('systemMaintenanceShouldBlock')
+                    && systemMaintenanceShouldBlock($pdo, user())) {
+                    header('Location: /helpdesk-php/maintenance.php');
+                    exit;
+                }
+            }
+        } catch (Throwable $exception) {
+            // Un fallo en la comprobación no debe dejar el sistema inaccesible.
+        }
+    }
+
     $passwordChangeAllowed = ['change-password.php', 'update-my-password.php', 'logout.php'];
 
     if (!empty($result['force_password_change']) && !in_array($currentScript, $passwordChangeAllowed, true)) {

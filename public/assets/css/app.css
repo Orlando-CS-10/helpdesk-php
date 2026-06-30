@@ -1,10 +1,10 @@
 /* Paquete principal del panel administrativo y técnico */
-@import url('variables.css?v=20260622-final-2');
+@import url('variables.css?v=20260626-consolidated-2');
 @import url('reset.css?v=20260622-final-2');
 @import url('components.css?v=20260622-final-2');
 
 @import url('admin-layout.css?v=20260622-admin-controls-global-1');
-@import url('admin-tables.css?v=20260622-final-2');
+@import url('admin-tables.css?v=20260626-consolidated-2');
 
 @import url('forms.css?v=20260622-final-2');
 @import url('modals.css?v=20260622-final-2');
@@ -16,11 +16,17 @@
 @import url('create-user-modal_empresas_sla.css?v=20260622-final-2');
 @import url('edit-user-empresa.css?v=20260622-final-2');
 
-/* Módulo con las 8 herramientas y editor enriquecido */
+/* Herramientas administrativas */
 @import url('admin-tools.css?v=20260622-final-2');
+
+/* Centro de ajustes y módulos configurables */
+@import url('admin-settings.css?v=20260626-consolidated-2');
+@import url('admin-security.css?v=20260626-security-fix-1');
+@import url('admin-contact-history.css?v=20260626-consolidated-2');
+@import url('admin-sla.css?v=20260626-consolidated-2');
+@import url('admin-system-tools.css?v=20260626-system-tools-1');
 
 @import url('responsive.css?v=20260622-final-2');
 
-/* SLA y reglas del sistema */
-@import url('admin-settings.css?v=20260625-sla-1');
-@import url('admin-sla.css?v=20260625-sla-1');
+/* Tema y personalización global: debe cargarse al final */
+@import url('admin-customization.css?v=20260626-consolidated-2');

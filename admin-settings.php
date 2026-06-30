@@ -56,10 +56,10 @@ $settingsModules = [
     [
         'title' => 'Herramientas del sistema',
         'description' => 'Centraliza respaldos, diagnóstico, registros y tareas de mantenimiento.',
-        'href' => '#',
+        'href' => '/helpdesk-php/admin-system-tools.php',
         'icon' => 'fa-solid fa-screwdriver-wrench',
-        'status' => 'Próximamente',
-        'available' => false,
+        'status' => 'Disponible',
+        'available' => true,
     ],
 ];
 
