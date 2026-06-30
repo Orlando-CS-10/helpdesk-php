@@ -64,12 +64,19 @@ if (isLoggedIn()) {
  */
 $useAuthLayout = (bool) ($useAuthLayout ?? false);
 $useClientLayout = (bool) ($useClientLayout ?? false);
+$useCompanyPortalLayout = (bool) ($useCompanyPortalLayout ?? false);
 
 $currentScript = basename((string) parse_url($_SERVER['SCRIPT_NAME'] ?? '', PHP_URL_PATH));
 $publicLayoutScripts = ['home.php', 'knowledge-article.php'];
 $authLayoutScripts = ['login.php'];
 
-if ($useAuthLayout || in_array($currentScript, $authLayoutScripts, true)) {
+if ($useCompanyPortalLayout) {
+    /*
+     * El Portal corporativo reutiliza el mismo paquete visual del panel.
+     * La sesión continúa siendo independiente; solo se comparte la capa UI.
+     */
+    $cssEntryFile = 'app.css';
+} elseif ($useAuthLayout || in_array($currentScript, $authLayoutScripts, true)) {
     $cssEntryFile = 'auth-app.css';
 } elseif ($useClientLayout || in_array($currentScript, $publicLayoutScripts, true)) {
     /*
@@ -125,6 +132,10 @@ if (is_file($systemCustomizationHelper)) {
         ? $candidateSidebar
         : 'expanded';
 }
+
+$sidebarStorageKey = $useCompanyPortalLayout
+    ? 'helpdesk_company_sidebar_collapsed'
+    : 'helpdesk_admin_sidebar_collapsed';
 ?>
 <!doctype html>
 <html lang="es" data-system-theme-setting="<?= htmlspecialchars($systemThemeSetting, ENT_QUOTES, 'UTF-8') ?>" data-system-theme="light">
@@ -163,7 +174,7 @@ if (is_file($systemCustomizationHelper)) {
             let sidebarCollapsed = <?= $systemSidebarDefault === 'collapsed' ? 'true' : 'false' ?>;
 
             try {
-                const savedSidebarState = localStorage.getItem('helpdesk_admin_sidebar_collapsed');
+                const savedSidebarState = localStorage.getItem(<?= json_encode($sidebarStorageKey, JSON_UNESCAPED_SLASHES) ?>);
 
                 if (savedSidebarState !== null) {
                     sidebarCollapsed = savedSidebarState === '1';

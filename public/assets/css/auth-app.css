@@ -5,3 +5,6 @@
 @import url('layout-public.css');
 @import url('auth.css');
 @import url('responsive.css');
+
+/* Estilos del acceso y Portal corporativo */
+@import url('company-portal.css');

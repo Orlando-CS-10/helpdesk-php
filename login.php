@@ -161,6 +161,13 @@ $authCssVersion = file_exists($authCssPath) ? filemtime($authCssPath) : time();
                         <i class="fa-solid fa-arrow-right"></i>
                     </button>
                 </form>
+
+                <div class="login-company-entry">
+                    <a href="/helpdesk-php/company-login.php">
+                        <i class="fa-solid fa-building-shield"></i>
+                        <span>Ingresar al Portal corporativo</span>
+                    </a>
+                </div>
             </div>
         </main>
     </section>

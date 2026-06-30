@@ -1,0 +1,534 @@
+/* =========================================================
+   PORTAL CORPORATIVO SOBRE EL LAYOUT COMPARTIDO
+   Reutiliza admin-shell, admin-sidebar, admin-topbar,
+   admin-kpi-card y admin-panel-card.
+   ========================================================= */
+.company-portal-dashboard {
+    width: 100%;
+    max-width: none;
+}
+
+.company-dashboard-content {
+    gap: 20px;
+}
+
+.company-shared-sidebar .admin-sidebar-nav {
+    flex: 1;
+    align-content: start;
+}
+
+.company-shared-brand h2 {
+    overflow: hidden;
+    max-width: 178px;
+    font-size: 15px;
+    line-height: 1.2;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.company-shared-brand p {
+    font-size: 11px;
+}
+
+.company-brand-logo {
+    overflow: hidden;
+    flex: 0 0 46px;
+    background: var(--color-secondary);
+}
+
+.company-brand-logo.has-company-logo {
+    border: 1px solid rgba(255, 255, 255, .18);
+    background: #ffffff;
+}
+
+.company-brand-logo img {
+    width: 100%;
+    height: 100%;
+    display: block;
+    padding: 5px;
+    object-fit: contain;
+}
+
+.company-sidebar-account {
+    display: grid;
+    grid-template-columns: 38px minmax(0, 1fr) 34px;
+    align-items: center;
+    gap: 9px;
+    margin-top: 16px;
+    padding: 12px;
+    border: 1px solid rgba(255, 255, 255, .09);
+    border-radius: 16px;
+    background: rgba(255, 255, 255, .06);
+}
+
+.company-sidebar-account-icon {
+    display: grid;
+    width: 38px;
+    height: 38px;
+    place-items: center;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, .10);
+    color: color-mix(in srgb, var(--color-secondary) 64%, #ffffff);
+}
+
+.company-sidebar-account-copy {
+    min-width: 0;
+}
+
+.company-sidebar-account strong,
+.company-sidebar-account small {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.company-sidebar-account strong {
+    color: #ffffff;
+    font-size: 11px;
+}
+
+.company-sidebar-account small {
+    margin-top: 3px;
+    color: rgba(255, 255, 255, .48);
+    font-size: 8px;
+}
+
+.company-sidebar-account > a {
+    display: grid;
+    width: 34px;
+    height: 34px;
+    place-items: center;
+    border-radius: 10px;
+    color: rgba(255, 255, 255, .68);
+    text-decoration: none;
+}
+
+.company-sidebar-account > a:hover {
+    background: rgba(255, 255, 255, .10);
+    color: #ffffff;
+}
+
+.admin-shell.sidebar-collapsed .company-sidebar-account {
+    width: 48px;
+    grid-template-columns: 1fr;
+    justify-items: center;
+    padding: 7px 5px;
+}
+
+.admin-shell.sidebar-collapsed .company-sidebar-account-copy,
+.admin-shell.sidebar-collapsed .company-sidebar-account > a {
+    display: none;
+}
+
+.company-shared-topbar {
+    align-items: center;
+}
+
+.company-security-badge {
+    display: inline-flex;
+    min-height: 40px;
+    align-items: center;
+    gap: 8px;
+    padding: 0 13px;
+    border: 1px solid #bbf7d0;
+    border-radius: 999px;
+    background: #ecfdf5;
+    color: #047857;
+    font-size: 10px;
+    font-weight: 900;
+    white-space: nowrap;
+}
+
+.company-password-link {
+    white-space: nowrap;
+}
+
+.company-shared-alert {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 14px 16px;
+    border: 1px solid;
+    border-radius: 16px;
+    font-size: 12px;
+    line-height: 1.5;
+}
+
+.company-shared-alert.is-success {
+    border-color: #bbf7d0;
+    background: #f0fdf4;
+    color: #166534;
+}
+
+.company-dashboard-hero-shared {
+    min-height: 170px;
+}
+
+.company-dashboard-hero-shared > div:first-child {
+    min-width: 0;
+    flex: 1;
+}
+
+.company-contract-summary {
+    min-width: 245px;
+    padding: 18px;
+    border: 1px solid rgba(255, 255, 255, .14);
+    border-radius: 18px;
+    background: rgba(255, 255, 255, .09);
+}
+
+.company-contract-summary span,
+.company-contract-summary strong,
+.company-contract-summary small {
+    display: block;
+}
+
+.company-contract-summary span {
+    color: rgba(255, 255, 255, .62);
+    font-size: 10px;
+    font-weight: 800;
+}
+
+.company-contract-summary strong {
+    margin-top: 7px;
+    color: #ffffff;
+    font-size: 21px;
+}
+
+.company-contract-summary small {
+    margin-top: 5px;
+    color: rgba(255, 255, 255, .66);
+    font-size: 10px;
+}
+
+.company-dashboard-kpi-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.company-kpi-card {
+    display: grid;
+    grid-template-columns: 48px minmax(0, 1fr);
+    align-items: center;
+    gap: 14px;
+    min-width: 0;
+}
+
+.company-kpi-card > div {
+    min-width: 0;
+}
+
+.company-kpi-icon {
+    display: grid;
+    width: 48px;
+    height: 48px;
+    place-items: center;
+    border-radius: 15px;
+    font-size: 18px;
+}
+
+.company-kpi-icon.is-blue { background: #eff6ff; color: #2563eb; }
+.company-kpi-icon.is-orange { background: #fff7ed; color: #ea580c; }
+.company-kpi-icon.is-purple { background: #f5f3ff; color: #7c3aed; }
+.company-kpi-icon.is-green { background: #ecfdf5; color: #059669; }
+
+.company-kpi-card .admin-kpi-label {
+    margin-bottom: 7px;
+}
+
+.company-kpi-card .admin-kpi-value {
+    margin-bottom: 7px;
+    font-size: 28px;
+}
+
+.company-kpi-value-text {
+    overflow: hidden;
+    font-size: 22px !important;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.company-dashboard-panels {
+    align-items: start;
+}
+
+.company-panel-heading {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 14px;
+}
+
+.company-panel-heading > div {
+    min-width: 0;
+}
+
+.company-panel-heading > small {
+    color: var(--system-muted, #64748b);
+    font-size: 10px;
+    font-weight: 800;
+    white-space: nowrap;
+}
+
+.company-panel-eyebrow {
+    display: block;
+    margin-bottom: 6px;
+    color: var(--color-secondary);
+    font-size: 9px;
+    font-weight: 900;
+    letter-spacing: .09em;
+    text-transform: uppercase;
+}
+
+.company-ticket-list-shared {
+    display: flex;
+    flex-direction: column;
+    gap: 9px;
+}
+
+.company-ticket-row {
+    display: grid;
+    grid-template-columns: 50px minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 12px;
+    padding: 13px;
+    border: 1px solid var(--system-border, #e7edf4);
+    border-radius: 16px;
+    background: var(--system-surface, #ffffff);
+    transition: border-color .18s ease, transform .18s ease, box-shadow .18s ease;
+}
+
+.company-ticket-row:hover {
+    transform: translateY(-1px);
+    border-color: rgba(var(--color-secondary-rgb), .34);
+    box-shadow: 0 10px 22px rgba(15, 23, 42, .05);
+}
+
+.company-ticket-id {
+    display: grid;
+    width: 50px;
+    height: 40px;
+    place-items: center;
+    border-radius: 12px;
+    background: var(--color-primary-soft, #eef6f2);
+    color: var(--color-primary);
+    font-size: 11px;
+    font-weight: 900;
+}
+
+.company-ticket-copy {
+    min-width: 0;
+}
+
+.company-ticket-copy strong,
+.company-ticket-copy small {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.company-ticket-copy strong {
+    color: var(--system-text, #0f172a);
+    font-size: 12px;
+}
+
+.company-ticket-copy small {
+    margin-top: 4px;
+    color: var(--system-muted, #64748b);
+    font-size: 9px;
+}
+
+.company-ticket-tags {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+.company-ticket-tags em {
+    padding: 5px 8px;
+    border-radius: 999px;
+    font-size: 8px;
+    font-style: normal;
+    font-weight: 900;
+    white-space: nowrap;
+}
+
+.company-ticket-tags .status-abierto { background: #eff6ff; color: #1d4ed8; }
+.company-ticket-tags .status-en_proceso { background: #fff7ed; color: #c2410c; }
+.company-ticket-tags .status-respondido { background: #f5f3ff; color: #6d28d9; }
+.company-ticket-tags .status-cerrado { background: #ecfdf5; color: #047857; }
+.company-ticket-tags .priority-alta { background: #fef2f2; color: #b91c1c; }
+.company-ticket-tags .priority-media { background: #fffbeb; color: #a16207; }
+.company-ticket-tags .priority-baja { background: #f1f5f9; color: #475569; }
+
+.company-status-list-shared {
+    display: grid;
+    gap: 9px;
+    margin-top: 4px;
+}
+
+.company-status-list-shared > div {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 13px 14px;
+    border: 1px solid var(--system-border, #e7edf4);
+    border-radius: 14px;
+    background: var(--system-surface-soft, #f8fafc);
+}
+
+.company-status-list-shared span {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--system-muted, #64748b);
+    font-size: 11px;
+}
+
+.company-status-list-shared strong {
+    color: var(--system-text, #0f172a);
+    font-size: 16px;
+}
+
+.company-next-module {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-top: 16px;
+    padding: 14px;
+    border: 1px dashed rgba(var(--color-secondary-rgb), .38);
+    border-radius: 15px;
+    background: var(--color-secondary-soft);
+}
+
+.company-next-module > i {
+    color: var(--color-secondary);
+    font-size: 20px;
+}
+
+.company-next-module strong,
+.company-next-module p {
+    display: block;
+}
+
+.company-next-module strong {
+    color: var(--system-text, #0f172a);
+    font-size: 11px;
+}
+
+.company-next-module p {
+    margin: 4px 0 0;
+    color: var(--system-muted, #64748b);
+    font-size: 9px;
+    line-height: 1.45;
+}
+
+.company-empty-state {
+    margin-top: 6px;
+}
+
+html[data-system-theme="dark"] .company-security-badge {
+    border-color: rgba(52, 211, 153, .30);
+    background: rgba(6, 95, 70, .28);
+    color: #6ee7b7;
+}
+
+html[data-system-theme="dark"] .company-shared-alert.is-success {
+    border-color: rgba(52, 211, 153, .30);
+    background: rgba(6, 95, 70, .22);
+    color: #a7f3d0;
+}
+
+html[data-system-theme="dark"] .company-ticket-tags .priority-baja {
+    background: #1e293b;
+    color: #cbd5e1;
+}
+
+
+html[data-system-theme="dark"] .company-kpi-card .admin-kpi-value,
+html[data-system-theme="dark"] .company-dashboard-panels .admin-panel-card-header h2,
+html[data-system-theme="dark"] .company-dashboard-panels .admin-panel-card-header h3 {
+    color: var(--system-text);
+}
+
+html[data-system-theme="dark"] .company-dashboard-content {
+    background: var(--system-page-bg);
+}
+
+@media (max-width: 1200px) {
+    .company-dashboard-kpi-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (max-width: 920px) {
+    .company-sidebar-account,
+    .admin-shell.sidebar-collapsed .company-sidebar-account {
+        width: 100%;
+        grid-template-columns: 38px minmax(0, 1fr) 34px;
+        justify-items: stretch;
+    }
+
+    .admin-shell.sidebar-collapsed .company-sidebar-account-copy,
+    .admin-shell.sidebar-collapsed .company-sidebar-account > a {
+        display: block;
+    }
+
+    .company-shared-topbar {
+        align-items: flex-start;
+    }
+}
+
+@media (max-width: 720px) {
+    .company-security-badge {
+        display: none;
+    }
+
+    .company-password-link span,
+    .company-shared-topbar .admin-user-meta,
+    .company-shared-topbar .admin-user-chevron {
+        display: none;
+    }
+
+    .company-password-link {
+        width: 43px;
+        padding: 0;
+        justify-content: center;
+    }
+
+    .company-dashboard-kpi-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .company-contract-summary {
+        width: 100%;
+        min-width: 0;
+    }
+
+    .company-panel-heading {
+        flex-direction: column;
+    }
+
+    .company-ticket-row {
+        grid-template-columns: 48px minmax(0, 1fr);
+    }
+
+    .company-ticket-tags {
+        grid-column: 2;
+        justify-content: flex-start;
+    }
+}
+
+@media (max-width: 520px) {
+    .company-shared-topbar .admin-topbar-right {
+        justify-content: flex-start;
+    }
+
+    .company-ticket-copy small {
+        white-space: normal;
+    }
+}

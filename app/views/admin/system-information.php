@@ -49,7 +49,7 @@ require_once __DIR__ . '/../layouts/header.php';
                 <div>
                     <a class="system-tool-back" href="/helpdesk-php/admin-system-tools.php">
                         <i class="fa-solid fa-arrow-left"></i>
-                        <span>Volver a Herramientas del sistema</span>
+                        <span>Volver al centro</span>
                     </a>
                     <span class="settings-eyebrow">Supervisión</span>
                     <h2>Ficha técnica de la plataforma</h2>

@@ -1001,3 +1001,20 @@ html.admin-sidebar-initial-collapsed .admin-sidebar-nav a {
         grid-template-columns: 76px minmax(0, 1fr);
     }
 }
+
+
+/* Encabezados y distintivos del sidebar compartido. */
+html.admin-sidebar-initial-collapsed .admin-sidebar-section,
+html.admin-sidebar-initial-collapsed .admin-sidebar-badge {
+    display: none;
+}
+
+@media (max-width: 920px) {
+    html.admin-sidebar-initial-collapsed .admin-sidebar-section {
+        display: block;
+    }
+
+    html.admin-sidebar-initial-collapsed .admin-sidebar-badge {
+        display: inline-flex;
+    }
+}

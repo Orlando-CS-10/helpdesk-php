@@ -92,6 +92,8 @@ $sidebarActivePage = (string)($activePage ?? $adminActiveMenu ?? '');
     </div>
 
     <nav class="admin-sidebar-nav" aria-label="Navegación administrativa">
+        <span class="admin-sidebar-section">Operación</span>
+
         <a
             href="/helpdesk-php/index.php"
             title="Panel operativo"
@@ -111,6 +113,8 @@ $sidebarActivePage = (string)($activePage ?? $adminActiveMenu ?? '');
                 <span class="admin-link-text">Gestionar tickets</span>
             </span>
         </a>
+
+        <span class="admin-sidebar-section">Gestión</span>
 
         <a
             href="/helpdesk-php/admin-clients.php"
@@ -132,6 +136,8 @@ $sidebarActivePage = (string)($activePage ?? $adminActiveMenu ?? '');
             </span>
         </a>
 
+        <span class="admin-sidebar-section">Análisis</span>
+
         <a
             href="/helpdesk-php/admin-dashboard.php"
             title="Dashboard"
@@ -143,22 +149,24 @@ $sidebarActivePage = (string)($activePage ?? $adminActiveMenu ?? '');
         </a>
 
         <a
-            href="/helpdesk-php/admin-tools.php"
-            title="Herramientas"
-            class="<?= $sidebarActivePage === 'tools' ? 'active' : '' ?>">
-            <span>
-                <i class="fa-solid fa-screwdriver-wrench"></i>
-                <span class="admin-link-text">Herramientas</span>
-            </span>
-        </a>
-
-        <a
             href="/helpdesk-php/admin-dashboard.php"
             title="Reportes"
             class="<?= $sidebarActivePage === 'reports-file' ? 'active' : '' ?>">
             <span>
                 <i class="fa-solid fa-file-lines"></i>
                 <span class="admin-link-text">Reportes</span>
+            </span>
+        </a>
+
+        <span class="admin-sidebar-section">Sistema</span>
+
+        <a
+            href="/helpdesk-php/admin-tools.php"
+            title="Herramientas"
+            class="<?= $sidebarActivePage === 'tools' ? 'active' : '' ?>">
+            <span>
+                <i class="fa-solid fa-screwdriver-wrench"></i>
+                <span class="admin-link-text">Herramientas</span>
             </span>
         </a>
 
