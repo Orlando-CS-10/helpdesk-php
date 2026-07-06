@@ -1,10 +1,10 @@
 /* CSS principal exclusivo para login / autenticación */
-@import url('variables.css');
-@import url('reset.css');
-@import url('components.css');
-@import url('layout-public.css');
-@import url('auth.css');
-@import url('responsive.css');
+@import url('variables.css?v=20260703-login-pro-1');
+@import url('reset.css?v=20260703-login-pro-1');
+@import url('components.css?v=20260703-login-pro-1');
+@import url('layout-public.css?v=20260703-login-pro-1');
+@import url('auth.css?v=20260703-login-pro-1');
+@import url('responsive.css?v=20260703-login-pro-1');
 
 /* Estilos del acceso y Portal corporativo */
-@import url('company-portal.css');
+@import url('company-portal.css?v=20260703-login-pro-1');

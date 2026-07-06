@@ -223,3 +223,288 @@ button, input { font: inherit; }
     .company-password-actions { align-items: stretch; flex-direction: column-reverse; }
     .company-password-actions > * { width: 100%; }
 }
+
+
+/* =========================================================
+   LOGIN CORPORATIVO PROFESIONAL V2
+   Mantiene el portal separado y mejora la experiencia de acceso.
+   ========================================================= */
+.company-portal-login-body {
+    overflow-x: hidden;
+    background:
+        radial-gradient(circle at 8% 12%, rgba(var(--company-accent-rgb), .12), transparent 27%),
+        radial-gradient(circle at 92% 86%, rgba(var(--company-primary-rgb), .14), transparent 32%),
+        linear-gradient(135deg, #eef4f2, #f8faf9 55%, #fff8ef);
+}
+
+.company-login-wrapper {
+    position: relative;
+    isolation: isolate;
+}
+
+.company-login-wrapper::before {
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    background-image:
+        linear-gradient(rgba(var(--company-primary-rgb), .025) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(var(--company-primary-rgb), .025) 1px, transparent 1px);
+    background-size: 36px 36px;
+    content: "";
+}
+
+.company-login-shell {
+    width: min(1120px, 100%);
+    min-height: 660px;
+    border-color: rgba(203, 213, 225, .72);
+    border-radius: 30px;
+    box-shadow:
+        0 36px 95px rgba(16, 37, 35, .18),
+        0 3px 12px rgba(15, 23, 42, .045);
+}
+
+.company-login-brand {
+    padding: 42px;
+    background:
+        radial-gradient(circle at 90% 12%, rgba(255,255,255,.09), transparent 28%),
+        linear-gradient(145deg, #0b302c 0%, #154a43 66%, #1f6257 100%);
+}
+
+.company-login-brand::before {
+    border-color: rgba(255,255,255,.15);
+}
+
+.company-login-card {
+    padding: 54px 48px;
+    background:
+        radial-gradient(circle at 100% 0, rgba(var(--company-accent-rgb), .05), transparent 28%),
+        #ffffff;
+}
+
+.company-login-card-inner {
+    width: min(420px, 100%);
+}
+
+.company-login-heading {
+    margin-bottom: 18px;
+}
+
+.company-login-security {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 13px;
+    margin-bottom: 22px;
+    padding: 11px 13px;
+    border: 1px solid #d7e9e3;
+    border-radius: 14px;
+    background: #f2f8f6;
+}
+
+.company-login-security span {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    color: #0f5e48;
+    font-size: 10px;
+    font-weight: 900;
+    white-space: nowrap;
+}
+
+.company-login-security small {
+    color: #657975;
+    font-size: 9px;
+    line-height: 1.4;
+    text-align: right;
+}
+
+.company-login-form {
+    gap: 18px;
+}
+
+.company-form-field > span {
+    color: #172b28;
+    font-size: 12px;
+    letter-spacing: .01em;
+}
+
+.company-form-field > div {
+    border-radius: 16px;
+}
+
+.company-form-field .company-field-icon {
+    left: 16px;
+    color: #8aa09c;
+    transition: color .18s ease, transform .18s ease;
+}
+
+.company-form-field input {
+    min-height: 54px;
+    padding: 0 16px 0 46px;
+    border-color: #d7e3e1;
+    border-radius: 16px;
+    background: #f9fbfb;
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.company-password-wrap input {
+    padding-right: 58px;
+}
+
+.company-form-field > div:hover input {
+    border-color: #b9ceca;
+    background: #ffffff;
+}
+
+.company-form-field > div:focus-within .company-field-icon {
+    color: var(--company-accent);
+    transform: translateY(-50%) scale(1.06);
+}
+
+.company-password-toggle {
+    position: absolute;
+    top: 50%;
+    right: 8px;
+    display: grid;
+    width: 40px;
+    height: 40px;
+    padding: 0;
+    place-items: center;
+    border: 0;
+    border-radius: 12px;
+    background: transparent;
+    color: #718682;
+    cursor: pointer;
+    transform: translateY(-50%);
+    transition: background .16s ease, color .16s ease, transform .16s ease;
+}
+
+.company-password-toggle:hover:not(:disabled),
+.company-password-toggle:focus-visible:not(:disabled) {
+    background: #edf6f3;
+    color: var(--company-primary);
+    outline: none;
+}
+
+.company-password-toggle:active:not(:disabled) {
+    transform: translateY(-50%) scale(.95);
+}
+
+.company-password-toggle:disabled {
+    opacity: .5;
+    cursor: not-allowed;
+}
+
+.company-caps-warning {
+    color: #a16207;
+}
+
+.company-primary-button {
+    min-height: 52px;
+    border-radius: 16px;
+    font-size: 13px;
+    letter-spacing: .01em;
+}
+
+.company-login-back {
+    min-height: 46px;
+    border-radius: 13px;
+    transition: background .16s ease, color .16s ease;
+}
+
+.company-login-back:hover {
+    background: #f4f8f7;
+}
+
+.company-login-legal {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    margin: 12px 0 0;
+    color: #899a98;
+    font-size: 9px;
+    line-height: 1.4;
+    text-align: center;
+}
+
+.company-login-legal i {
+    color: var(--company-primary);
+}
+
+.company-form-field input:-webkit-autofill,
+.company-form-field input:-webkit-autofill:hover,
+.company-form-field input:-webkit-autofill:focus {
+    -webkit-text-fill-color: var(--company-text);
+    -webkit-box-shadow: 0 0 0 1000px #f9fbfb inset;
+    transition: background-color 9999s ease-in-out 0s;
+}
+
+@media (max-width: 900px) {
+    .company-login-shell {
+        min-height: auto;
+    }
+
+    .company-login-card {
+        padding: 40px 30px;
+    }
+}
+
+@media (max-width: 650px) {
+    .company-login-card {
+        padding: 30px 20px;
+    }
+
+    .company-login-security {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+
+    .company-login-security small {
+        text-align: left;
+    }
+}
+
+
+/* Fase 2: ajuste visual del recordatorio corporativo. */
+.company-remember-option {
+    color: var(--company-text);
+}
+
+.company-remember-option .login-remember-control {
+    border-color: #c8d8d5;
+}
+
+.company-remember-option:hover .login-remember-control {
+    border-color: rgba(var(--company-primary-rgb), .58);
+}
+
+.company-remember-option > input:focus-visible + .login-remember-control {
+    border-color: var(--company-primary);
+    box-shadow: 0 0 0 4px rgba(var(--company-primary-rgb), .11);
+}
+
+.company-remember-option > input:checked + .login-remember-control {
+    border-color: var(--company-primary);
+    background: var(--company-primary);
+}
+
+.company-remember-option .login-remember-copy strong {
+    color: #243a36;
+}
+
+.company-remember-option .login-remember-copy small {
+    color: #82938f;
+}
+
+
+.company-primary-button.is-loading {
+    opacity: .9;
+    cursor: wait;
+}
+
+.company-remember-option:has(input:disabled) {
+    opacity: .55;
+    cursor: not-allowed;
+}

@@ -29,19 +29,46 @@ function safeNotificationRedirect(string $redirect): string
     return '/helpdesk-php/index.php';
 }
 
-if ($userId <= 0 || $notificationId <= 0) {
-    header('Location: ' . safeNotificationRedirect($redirect));
-    exit;
+function wantsSingleNotificationJsonResponse(): bool
+{
+    $requestedWith = strtolower((string)($_SERVER['HTTP_X_REQUESTED_WITH'] ?? ''));
+    $accept = strtolower((string)($_SERVER['HTTP_ACCEPT'] ?? ''));
+
+    return $requestedWith === 'xmlhttprequest'
+        || str_contains($accept, 'application/json')
+        || (string)($_GET['ajax'] ?? $_POST['ajax'] ?? '') === '1';
 }
 
-$stmt = $pdo->prepare("UPDATE notifications
-                       SET is_read = 1
-                       WHERE id = :id
-                         AND user_id = :user_id");
-$stmt->execute([
-    'id' => $notificationId,
-    'user_id' => $userId,
-]);
+function countSingleUnreadNotifications(PDO $pdo, int $userId): int
+{
+    $stmt = $pdo->prepare('SELECT COUNT(*) FROM notifications WHERE user_id = :user_id AND is_read = 0');
+    $stmt->execute(['user_id' => $userId]);
+
+    return (int)$stmt->fetchColumn();
+}
+
+if ($userId > 0 && $notificationId > 0) {
+    $stmt = $pdo->prepare("UPDATE notifications
+                           SET is_read = 1
+                           WHERE id = :id
+                             AND user_id = :user_id");
+    $stmt->execute([
+        'id' => $notificationId,
+        'user_id' => $userId,
+    ]);
+}
+
+if (wantsSingleNotificationJsonResponse()) {
+    header('Content-Type: application/json; charset=utf-8');
+    header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+
+    echo json_encode([
+        'success' => $userId > 0 && $notificationId > 0,
+        'unread_count' => $userId > 0 ? countSingleUnreadNotifications($pdo, $userId) : 0,
+        'redirect' => safeNotificationRedirect($redirect),
+    ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    exit;
+}
 
 header('Location: ' . safeNotificationRedirect($redirect));
 exit;

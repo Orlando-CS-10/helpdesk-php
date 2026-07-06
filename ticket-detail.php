@@ -312,6 +312,71 @@ $clientTicketsStatement = $pdo->prepare(
 $clientTicketsStatement->execute(['client_id' => (int)$ticket['requester_id']]);
 $clientTickets = $clientTicketsStatement->fetchAll(PDO::FETCH_ASSOC);
 
+/*
+|--------------------------------------------------------------------------
+| Cierre estructurado del ticket
+|--------------------------------------------------------------------------
+| Los motivos provienen de Herramientas > Motivos de cierre. El registro
+| del cierre se almacena en ticket_closures para conservar la trazabilidad.
+*/
+$closureReasons = [];
+$ticketClosure = null;
+$closureModuleReady = ticketTableExists($pdo, 'closure_reasons')
+    && ticketTableExists($pdo, 'ticket_closures');
+
+if (ticketTableExists($pdo, 'closure_reasons')) {
+    $closureReasonStatement = $pdo->query(
+        'SELECT id, code, name, description, requires_comment
+         FROM closure_reasons
+         WHERE is_active = 1
+         ORDER BY name ASC, id ASC'
+    );
+    $closureReasons = $closureReasonStatement->fetchAll(PDO::FETCH_ASSOC) ?: [];
+}
+
+if (ticketTableExists($pdo, 'ticket_closures')) {
+    $ticketClosureStatement = $pdo->prepare(
+        'SELECT
+            tc.id,
+            tc.ticket_id,
+            tc.closure_reason_id,
+            tc.reason_code,
+            tc.reason_name,
+            tc.comment,
+            tc.closed_by,
+            tc.closed_by_name,
+            tc.closed_by_role,
+            tc.closed_at,
+            tc.sla_met,
+            cr.description AS reason_description
+         FROM ticket_closures tc
+         LEFT JOIN closure_reasons cr ON cr.id = tc.closure_reason_id
+         WHERE tc.ticket_id = :ticket_id
+         ORDER BY tc.closed_at DESC, tc.id DESC
+         LIMIT 1'
+    );
+    $ticketClosureStatement->execute(['ticket_id' => $ticketId]);
+    $ticketClosure = $ticketClosureStatement->fetch(PDO::FETCH_ASSOC) ?: null;
+}
+
+$canCloseTicket = false;
+
+/*
+|--------------------------------------------------------------------------
+| Permiso visual para cerrar ticket
+|--------------------------------------------------------------------------
+| El botón debe mostrarse para administradores, técnicos y para el cliente
+| solicitante mientras el ticket siga abierto. El modal se encarga de avisar
+| si no existen motivos activos configurados.
+*/
+if (($ticket['status'] ?? '') !== 'CERRADO') {
+    if ($currentRole === 'ADMIN' || $currentRole === 'TECH') {
+        $canCloseTicket = true;
+    } elseif ($currentRole === 'CLIENT') {
+        $canCloseTicket = (int)($ticket['requester_id'] ?? 0) === $currentUserId;
+    }
+}
+
 $slaTimer = getSlaTimerData($ticket);
 $closeTicketCsrfToken = systemSlaCsrfToken();
 

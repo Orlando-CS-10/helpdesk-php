@@ -1,64 +1,133 @@
 <?php
+
 require_once __DIR__ . '/app/helpers/session.php';
 require_once __DIR__ . '/app/config/database.php';
 require_once __DIR__ . '/app/helpers/notifications.php';
 require_once __DIR__ . '/app/helpers/ticket_activity.php';
 require_once __DIR__ . '/app/helpers/system_sla.php';
+require_once __DIR__ . '/app/helpers/ticket_message_helper.php';
 
 requireLogin();
+
+function closeTicketRedirect(int $ticketId, string $type, string $message): never
+{
+    $_SESSION[$type === 'success' ? 'ticket_success' : 'ticket_error'] = $message;
+
+    $destination = $ticketId > 0
+        ? '/helpdesk-php/ticket-detail.php?id=' . $ticketId
+        : '/helpdesk-php/home.php';
+
+    header('Location: ' . $destination);
+    exit;
+}
+
+function closeTicketSafeText(
+    string $value,
+    int $maxLength,
+    bool $collapseWhitespace = true
+): string {
+    $value = str_replace(["\r\n", "\r"], "\n", trim($value));
+
+    if ($collapseWhitespace) {
+        $value = trim(preg_replace('/\s+/u', ' ', $value) ?? $value);
+    }
+
+    if (function_exists('mb_substr')) {
+        return mb_substr($value, 0, $maxLength, 'UTF-8');
+    }
+
+    return substr($value, 0, $maxLength);
+}
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     header('Location: /helpdesk-php/home.php');
     exit;
 }
 
-$ticketId = isset($_POST['ticket_id']) ? (int) $_POST['ticket_id'] : 0;
+$ticketId = isset($_POST['ticket_id']) ? (int)$_POST['ticket_id'] : 0;
+$closureReasonId = isset($_POST['closure_reason_id']) ? (int)$_POST['closure_reason_id'] : 0;
+$closureComment = closeTicketSafeText((string)($_POST['closure_comment'] ?? ''), 2000, false);
+$confirmed = (string)($_POST['confirm_close'] ?? '') === '1';
 
 if ($ticketId <= 0) {
-    header('Location: /helpdesk-php/home.php');
-    exit;
-}
-
-$currentUser = (array) user();
-
-if (($currentUser['role'] ?? '') !== 'CLIENT') {
-    $_SESSION['ticket_error'] = 'Solo el cliente puede cerrar su ticket.';
-    header('Location: /helpdesk-php/ticket-detail.php?id=' . $ticketId);
-    exit;
+    closeTicketRedirect(0, 'error', 'No se pudo identificar el ticket.');
 }
 
 if (!systemSlaVerifyCsrf($_POST['csrf_token'] ?? null)) {
-    $_SESSION['ticket_error'] = 'La confirmación venció. Vuelve a intentar el cierre.';
-    header('Location: /helpdesk-php/ticket-detail.php?id=' . $ticketId);
-    exit;
+    closeTicketRedirect($ticketId, 'error', 'La confirmación venció. Vuelve a intentar el cierre.');
 }
 
-$stmt = $pdo->prepare(
+if (!$confirmed) {
+    closeTicketRedirect($ticketId, 'error', 'Debes confirmar el cierre definitivo del ticket.');
+}
+
+if (!ticketTableExists($pdo, 'closure_reasons') || !ticketTableExists($pdo, 'ticket_closures')) {
+    closeTicketRedirect(
+        $ticketId,
+        'error',
+        'El módulo de cierre todavía no está instalado. Ejecuta database/ticket_closures.sql.'
+    );
+}
+
+$currentUser = (array)user();
+$currentUserId = (int)($currentUser['id'] ?? 0);
+$currentRole = strtoupper((string)($currentUser['role'] ?? ''));
+
+$ticketStatement = $pdo->prepare(
     'SELECT *
      FROM tickets
      WHERE id = :ticket_id
-       AND requester_id = :requester_id
      LIMIT 1'
 );
-$stmt->execute([
-    'ticket_id' => $ticketId,
-    'requester_id' => (int) ($currentUser['id'] ?? 0),
-]);
-$ticket = $stmt->fetch(PDO::FETCH_ASSOC);
+$ticketStatement->execute(['ticket_id' => $ticketId]);
+$ticket = $ticketStatement->fetch(PDO::FETCH_ASSOC);
 
 if (!$ticket) {
-    $_SESSION['ticket_error'] = 'No tienes permiso para cerrar este ticket.';
-    header('Location: /helpdesk-php/home.php');
-    exit;
+    closeTicketRedirect($ticketId, 'error', 'No se encontró el ticket solicitado.');
+}
+
+$hasPermission = match ($currentRole) {
+    'ADMIN' => true,
+    'TECH' => true,
+    'CLIENT' => (int)($ticket['requester_id'] ?? 0) === $currentUserId,
+    default => false,
+};
+
+if (!$hasPermission) {
+    closeTicketRedirect($ticketId, 'error', 'No tienes permiso para cerrar este ticket.');
 }
 
 if (($ticket['status'] ?? '') === 'CERRADO') {
-    $_SESSION['ticket_error'] = 'Este ticket ya está cerrado.';
-    header('Location: /helpdesk-php/ticket-detail.php?id=' . $ticketId);
-    exit;
+    closeTicketRedirect($ticketId, 'error', 'Este ticket ya se encuentra cerrado.');
+}
+
+$reasonStatement = $pdo->prepare(
+    'SELECT id, code, name, description, requires_comment
+     FROM closure_reasons
+     WHERE id = :id
+       AND is_active = 1
+     LIMIT 1'
+);
+$reasonStatement->execute(['id' => $closureReasonId]);
+$reason = $reasonStatement->fetch(PDO::FETCH_ASSOC);
+
+if (!$reason) {
+    closeTicketRedirect($ticketId, 'error', 'Selecciona un motivo de cierre válido.');
+}
+
+if ((int)($reason['requires_comment'] ?? 0) === 1 && $closureComment === '') {
+    closeTicketRedirect(
+        $ticketId,
+        'error',
+        'El motivo seleccionado requiere un comentario de cierre.'
+    );
 }
 
 $closedAt = date('Y-m-d H:i:s');
+$actorName = closeTicketSafeText((string)($currentUser['name'] ?? 'Usuario'), 120);
+$reasonName = closeTicketSafeText((string)($reason['name'] ?? 'Sin motivo'), 120);
+$reasonCode = closeTicketSafeText((string)($reason['code'] ?? 'SIN_CODIGO'), 50);
+$clientClosed = $currentRole === 'CLIENT' ? 1 : 0;
 
 try {
     $pdo->beginTransaction();
@@ -66,24 +135,25 @@ try {
     systemSlaSyncPauseState(
         $pdo,
         $ticketId,
-        (string) ($ticket['status'] ?? ''),
+        (string)($ticket['status'] ?? ''),
         'CERRADO',
         $closedAt
     );
 
-    $refreshStmt = $pdo->prepare('SELECT * FROM tickets WHERE id = :id LIMIT 1');
-    $refreshStmt->execute(['id' => $ticketId]);
-    $ticketForMetrics = $refreshStmt->fetch(PDO::FETCH_ASSOC) ?: $ticket;
+    $refreshStatement = $pdo->prepare('SELECT * FROM tickets WHERE id = :id LIMIT 1');
+    $refreshStatement->execute(['id' => $ticketId]);
+    $ticketForMetrics = $refreshStatement->fetch(PDO::FETCH_ASSOC) ?: $ticket;
     $metrics = systemSlaCloseMetrics($ticketForMetrics, $closedAt);
 
     $assignments = [
         "status = 'CERRADO'",
-        'client_closed = 1',
+        'client_closed = :client_closed',
         'closed_at = :closed_at',
         'sla_met = :sla_met',
         'updated_at = :closed_at',
     ];
     $params = [
+        'client_closed' => $clientClosed,
         'closed_at' => $closedAt,
         'sla_met' => $metrics['met'],
         'ticket_id' => $ticketId,
@@ -94,49 +164,138 @@ try {
         $params['sla_ttr_met'] = $metrics['met'];
     }
 
-    $stmtUpdate = $pdo->prepare(
-        'UPDATE tickets SET ' . implode(', ', $assignments) . ' WHERE id = :ticket_id'
+    $updateStatement = $pdo->prepare(
+        'UPDATE tickets
+         SET ' . implode(', ', $assignments) . '
+         WHERE id = :ticket_id'
     );
-    $stmtUpdate->execute($params);
+    $updateStatement->execute($params);
+
+    $closureStatement = $pdo->prepare(
+        'INSERT INTO ticket_closures (
+            ticket_id,
+            closure_reason_id,
+            reason_code,
+            reason_name,
+            comment,
+            closed_by,
+            closed_by_name,
+            closed_by_role,
+            closed_at,
+            sla_met
+         ) VALUES (
+            :ticket_id,
+            :closure_reason_id,
+            :reason_code,
+            :reason_name,
+            :comment,
+            :closed_by,
+            :closed_by_name,
+            :closed_by_role,
+            :closed_at,
+            :sla_met
+         )'
+    );
+    $closureStatement->execute([
+        'ticket_id' => $ticketId,
+        'closure_reason_id' => (int)$reason['id'],
+        'reason_code' => $reasonCode,
+        'reason_name' => $reasonName,
+        'comment' => $closureComment !== '' ? $closureComment : null,
+        'closed_by' => $currentUserId > 0 ? $currentUserId : null,
+        'closed_by_name' => $actorName,
+        'closed_by_role' => $currentRole,
+        'closed_at' => $closedAt,
+        'sla_met' => $metrics['met'],
+    ]);
+
+    $roleLabel = match ($currentRole) {
+        'ADMIN' => 'El administrador',
+        'TECH' => 'El técnico',
+        'CLIENT' => 'El cliente',
+        default => 'El usuario',
+    };
+
+    $activityDescription = $roleLabel . ' cerró el ticket. Motivo: ' . $reasonName . '.';
+
+    if ($closureComment !== '') {
+        $activityDescription .= ' Comentario: ' . $closureComment;
+    }
+
+    $activityDescription .= ' Resultado SLA TTR: '
+        . ($metrics['met'] === 1 ? 'cumplido.' : 'incumplido.');
 
     createTicketActivity(
         $pdo,
         $ticketId,
-        (int) ($currentUser['id'] ?? 0),
-        (string) ($currentUser['name'] ?? 'Cliente'),
-        (string) ($currentUser['role'] ?? 'CLIENT'),
+        $currentUserId,
+        $actorName,
+        $currentRole,
         'CLOSED',
-        'El cliente cerró el ticket. Resultado SLA TTR: ' . ($metrics['met'] === 1 ? 'cumplido.' : 'incumplido.'),
-        $ticket['status'] ?? null,
-        'CERRADO'
+        closeTicketSafeText($activityDescription, 255),
+        (string)($ticket['status'] ?? ''),
+        'CERRADO|' . $reasonCode
     );
 
-    createNotification(
-        $pdo,
-        (int) ($currentUser['id'] ?? 0),
-        'Ticket cerrado',
-        'Tu ticket #' . $ticketId . ' fue cerrado correctamente.',
-        'success',
-        $ticketId
-    );
+    $requesterId = (int)($ticket['requester_id'] ?? 0);
 
-    notifyAdmins(
-        $pdo,
-        'Ticket cerrado por el cliente',
-        'El cliente cerró el ticket #' . $ticketId . '. Resultado SLA: ' . ($metrics['met'] === 1 ? 'cumplido' : 'incumplido') . '.',
-        'warning',
-        $ticketId
-    );
+    if ($requesterId > 0) {
+        createNotification(
+            $pdo,
+            $requesterId,
+            'Ticket cerrado',
+            'El ticket #' . $ticketId . ' fue cerrado. Motivo: ' . $reasonName . '.',
+            'success',
+            $ticketId
+        );
+    }
+
+    $assignedTo = (int)($ticket['assigned_to'] ?? 0);
+
+    if ($assignedTo > 0 && $assignedTo !== $currentUserId && $assignedTo !== $requesterId) {
+        createNotification(
+            $pdo,
+            $assignedTo,
+            'Ticket cerrado',
+            'El ticket #' . $ticketId . ' fue cerrado por ' . $actorName
+                . '. Motivo: ' . $reasonName . '.',
+            'warning',
+            $ticketId
+        );
+    }
+
+    if ($currentRole !== 'ADMIN') {
+        notifyAdmins(
+            $pdo,
+            'Ticket cerrado',
+            $actorName . ' cerró el ticket #' . $ticketId
+                . '. Motivo: ' . $reasonName
+                . '. SLA: ' . ($metrics['met'] === 1 ? 'cumplido' : 'incumplido') . '.',
+            'warning',
+            $ticketId
+        );
+    }
 
     $pdo->commit();
-    $_SESSION['ticket_success'] = 'El ticket fue cerrado correctamente. Ahora puedes calificar la atención.';
+
+    closeTicketRedirect(
+        $ticketId,
+        'success',
+        'El ticket fue cerrado correctamente con el motivo "' . $reasonName . '".'
+    );
 } catch (Throwable $exception) {
     if ($pdo->inTransaction()) {
         $pdo->rollBack();
     }
 
-    $_SESSION['ticket_error'] = 'Ocurrió un error al cerrar el ticket.';
-}
+    error_log(
+        '[close-ticket] Ticket #' . $ticketId . ': '
+        . $exception->getMessage()
+    );
 
-header('Location: /helpdesk-php/ticket-detail.php?id=' . $ticketId);
-exit;
+    closeTicketRedirect(
+        $ticketId,
+        'error',
+        'Ocurrió un error al cerrar el ticket. Revisa el registro del servidor.'
+    );
+}

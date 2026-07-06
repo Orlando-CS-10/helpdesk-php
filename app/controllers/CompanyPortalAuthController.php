@@ -3,6 +3,7 @@
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../helpers/company_portal.php';
 require_once __DIR__ . '/../helpers/system_security.php';
+require_once __DIR__ . '/../helpers/remember_me.php';
 
 class CompanyPortalAuthController
 {
@@ -13,7 +14,7 @@ class CompanyPortalAuthController
         $this->pdo = $pdo;
     }
 
-    public function login(string $email, string $password): array
+    public function login(string $email, string $password, bool $rememberMe = false): array
     {
         $email = strtolower(trim($email));
 
@@ -164,15 +165,18 @@ class CompanyPortalAuthController
             // El acceso no depende de la telemetría.
         }
 
+        $credentialHash = (string) $account['password_hash'];
+
         if (password_needs_rehash((string) $account['password_hash'], PASSWORD_DEFAULT)) {
             try {
                 $rehash = $this->pdo->prepare(
                     'UPDATE company_portal_accounts SET password_hash = :password_hash WHERE id = :id'
                 );
                 $rehash->execute([
-                    'password_hash' => password_hash($password, PASSWORD_DEFAULT),
+                    'password_hash' => ($newCredentialHash = password_hash($password, PASSWORD_DEFAULT)),
                     'id' => $accountId,
                 ]);
+                $credentialHash = $newCredentialHash;
             } catch (Throwable $exception) {
                 // Se conserva el hash válido actual.
             }
@@ -203,6 +207,12 @@ class CompanyPortalAuthController
         $_SESSION['company_portal_last_activity_at'] = time();
         $_SESSION['company_portal_db_touch_at'] = time();
 
+        if ($rememberMe) {
+            companyRememberIssueForAccount($this->pdo, $accountId, $credentialHash);
+        } else {
+            companyRememberForgetCurrent($this->pdo, 'La cuenta corporativa inició sesión sin recordar el dispositivo');
+        }
+
         companyPortalAudit(
             $this->pdo,
             'LOGIN_SUCCESS',
@@ -210,7 +220,10 @@ class CompanyPortalAuthController
             $companyId,
             $accountId,
             'info',
-            ['is_primary' => (int) ($account['is_primary'] ?? 0)]
+            [
+                'is_primary' => (int) ($account['is_primary'] ?? 0),
+                'remember_me' => $rememberMe,
+            ]
         );
 
         return [
@@ -325,6 +338,8 @@ class CompanyPortalAuthController
 
     public function logout(string $reason = 'Cierre de sesión voluntario'): void
     {
+        companyRememberForgetCurrent($this->pdo, $reason);
+
         $account = companyPortalAccount();
         $accountId = (int) ($account['id'] ?? 0);
         $companyId = (int) ($account['company_id'] ?? 0);

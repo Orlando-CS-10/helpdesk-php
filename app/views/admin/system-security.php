@@ -91,7 +91,7 @@ $updatedAt = trim((string) ($systemSecuritySettings['updated_at'] ?? ''));
 $updatedByName = trim((string) ($systemSecuritySettings['updated_by_name'] ?? ''));
 $rulesText = function_exists('systemSecurityPasswordRulesText')
     ? systemSecurityPasswordRulesText($systemSecuritySettings)
-    : 'mínimo 8 caracteres.';
+    : 'Mínimo 8 caracteres.';
 
 require_once __DIR__ . '/../layouts/header.php';
 ?>

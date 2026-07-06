@@ -1,4 +1,39 @@
 <?php
+/**
+ * Variables proporcionadas por company-dashboard.php.
+ * Los valores de respaldo permiten que la vista también sea analizada
+ * correctamente por Intelephense cuando se abre de forma independiente.
+ *
+ * @var array<string, mixed>              $account
+ * @var array<string, int>                $summary
+ * @var array<int, array<string, mixed>>  $recentTickets
+ * @var int|null                          $slaPercentage
+ */
+$account = isset($account) && is_array($account) ? $account : [];
+
+$summaryDefaults = [
+    'contacts' => 0,
+    'active_contacts' => 0,
+    'tickets' => 0,
+    'open' => 0,
+    'in_progress' => 0,
+    'answered' => 0,
+    'closed' => 0,
+    'sla_met' => 0,
+    'sla_measured' => 0,
+];
+$summary = isset($summary) && is_array($summary)
+    ? array_merge($summaryDefaults, $summary)
+    : $summaryDefaults;
+
+$recentTickets = isset($recentTickets) && is_array($recentTickets)
+    ? $recentTickets
+    : [];
+
+$slaPercentage = isset($slaPercentage) && is_numeric($slaPercentage)
+    ? (int) $slaPercentage
+    : null;
+
 $title = 'Portal corporativo - ' . companyPortalDisplayName($account);
 $useCompanyPortalLayout = true;
 $companyActivePage = 'dashboard';

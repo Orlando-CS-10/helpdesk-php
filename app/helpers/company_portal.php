@@ -2,6 +2,7 @@
 
 require_once __DIR__ . '/company_portal_session.php';
 require_once __DIR__ . '/system_security.php';
+require_once __DIR__ . '/remember_me.php';
 
 if (!function_exists('companyPortalTableExists')) {
     function companyPortalTableExists(PDO $pdo, string $table): bool
@@ -287,7 +288,11 @@ if (!function_exists('companyPortalEnforceSession')) {
     function companyPortalEnforceSession(PDO $pdo): array
     {
         if (!companyPortalIsLoggedIn()) {
-            return ['valid' => false, 'reason' => 'not_authenticated'];
+            companyRememberAttempt($pdo);
+
+            if (!companyPortalIsLoggedIn()) {
+                return ['valid' => false, 'reason' => 'not_authenticated'];
+            }
         }
 
         if (!companyPortalModuleReady($pdo)) {

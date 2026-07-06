@@ -57,7 +57,26 @@ function destroyLocalSession(): void
 function enforceCurrentSecuritySession(): array
 {
     if (!isLoggedIn()) {
-        return ['valid' => false, 'reason' => 'not_authenticated'];
+        global $pdo;
+
+        try {
+            if (!isset($pdo) || !$pdo instanceof PDO) {
+                require __DIR__ . '/../config/database.php';
+            }
+
+            require_once __DIR__ . '/system_security.php';
+            require_once __DIR__ . '/remember_me.php';
+
+            if (isset($pdo) && $pdo instanceof PDO) {
+                authRememberAttempt($pdo);
+            }
+        } catch (Throwable $exception) {
+            // Si el token persistente no puede comprobarse, se solicita el login normal.
+        }
+
+        if (!isLoggedIn()) {
+            return ['valid' => false, 'reason' => 'not_authenticated'];
+        }
     }
 
     /*

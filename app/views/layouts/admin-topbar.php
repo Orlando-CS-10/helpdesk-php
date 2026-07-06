@@ -152,13 +152,16 @@ $currentUrlEncoded = rawurlencode($currentUrl);
                         </div>
 
                         <?php if ($unreadNotificationsCount > 0): ?>
-                            <a href="<?= htmlspecialchars($baseUrl, ENT_QUOTES, 'UTF-8') ?>/mark-all-notifications-read.php?redirect=<?= htmlspecialchars($currentUrlEncoded, ENT_QUOTES, 'UTF-8') ?>">
+                            <a
+                                href="<?= htmlspecialchars($baseUrl, ENT_QUOTES, 'UTF-8') ?>/mark-all-notifications-read.php?redirect=<?= htmlspecialchars($currentUrlEncoded, ENT_QUOTES, 'UTF-8') ?>"
+                                id="adminMarkAllNotificationsRead"
+                                data-mark-all-notifications>
                                 Marcar leídas
                             </a>
                         <?php endif; ?>
                     </div>
 
-                    <div class="admin-notification-list">
+                    <div class="admin-notification-list" id="adminNotificationList" data-empty-title="Sin alertas pendientes" data-empty-message="Los SLA se encuentran bajo control.">
                         <?php if (empty($notificationItems)): ?>
                             <div class="admin-notification-empty">
                                 <i class="fa-regular fa-bell"></i>
@@ -192,7 +195,8 @@ $currentUrlEncoded = rawurlencode($currentUrl);
 
                                 <a
                                     href="<?= htmlspecialchars($notificationHref, ENT_QUOTES, 'UTF-8') ?>"
-                                    class="admin-notification-item <?= ((int)($notification['is_read'] ?? 0) === 0) ? 'unread' : '' ?> type-<?= htmlspecialchars($notificationType, ENT_QUOTES, 'UTF-8') ?>">
+                                    class="admin-notification-item <?= ((int)($notification['is_read'] ?? 0) === 0) ? 'unread' : '' ?> type-<?= htmlspecialchars($notificationType, ENT_QUOTES, 'UTF-8') ?>"
+                                    data-notification-id="<?= (int)$notificationId ?>">
                                     <span class="admin-notification-icon">
                                         <i class="<?= htmlspecialchars($iconClass, ENT_QUOTES, 'UTF-8') ?>"></i>
                                     </span>
@@ -391,12 +395,36 @@ $currentUrlEncoded = rawurlencode($currentUrl);
 
 <script>
 (function () {
+    const adminNotificationBaseUrl = <?= json_encode($baseUrl, JSON_UNESCAPED_SLASHES) ?>;
+    const adminNotificationPollMs = 15000;
+    let adminNotificationLastUnread = <?= (int)$unreadNotificationsCount ?>;
+    let adminNotificationFetching = false;
+    let adminNotificationTimer = null;
+
     function getUserDropdown() {
         return document.getElementById('adminUserDropdown');
     }
 
     function getNotificationsDropdown() {
         return document.getElementById('adminNotificationsDropdown');
+    }
+
+    function getNotificationsTrigger() {
+        return document.getElementById('adminNotificationsTrigger');
+    }
+
+    function getNotificationsList() {
+        return document.getElementById('adminNotificationList');
+    }
+
+    function getCurrentRedirectUrl() {
+        return window.location.pathname + window.location.search;
+    }
+
+    function buildMarkAllUrl() {
+        return adminNotificationBaseUrl
+            + '/mark-all-notifications-read.php?redirect='
+            + encodeURIComponent(getCurrentRedirectUrl());
     }
 
     function setUserMenuOpen(open) {
@@ -416,7 +444,7 @@ $currentUrlEncoded = rawurlencode($currentUrl);
 
     function setNotificationsMenuOpen(open) {
         const dropdown = getNotificationsDropdown();
-        const trigger = document.getElementById('adminNotificationsTrigger');
+        const trigger = getNotificationsTrigger();
 
         if (!dropdown) {
             return;
@@ -426,6 +454,249 @@ $currentUrlEncoded = rawurlencode($currentUrl);
 
         if (trigger) {
             trigger.setAttribute('aria-expanded', open ? 'true' : 'false');
+        }
+
+        if (open) {
+            refreshAdminNotifications({ silent: true });
+        }
+    }
+
+    function formatNotificationBadge(count) {
+        return count > 99 ? '99+' : String(count);
+    }
+
+    function ensureMarkAllLink(count) {
+        const dropdown = getNotificationsDropdown();
+        const header = dropdown ? dropdown.querySelector('.admin-notification-header') : null;
+        let link = document.getElementById('adminMarkAllNotificationsRead');
+
+        if (count > 0 && !link && header) {
+            link = document.createElement('a');
+            link.id = 'adminMarkAllNotificationsRead';
+            link.dataset.markAllNotifications = '1';
+            link.textContent = 'Marcar leídas';
+            header.appendChild(link);
+        }
+
+        if (!link) {
+            return;
+        }
+
+        link.href = buildMarkAllUrl();
+        link.hidden = count <= 0;
+        link.style.display = count > 0 ? '' : 'none';
+    }
+
+    function updateNotificationBadge(count) {
+        const trigger = getNotificationsTrigger();
+
+        if (!trigger) {
+            return;
+        }
+
+        let badge = trigger.querySelector('.admin-notification-badge');
+
+        if (count > 0) {
+            if (!badge) {
+                badge = document.createElement('span');
+                badge.className = 'admin-notification-badge';
+                trigger.appendChild(badge);
+            }
+
+            badge.textContent = formatNotificationBadge(count);
+            badge.hidden = false;
+        } else if (badge) {
+            badge.remove();
+        }
+
+        ensureMarkAllLink(count);
+    }
+
+    function getNotificationIcon(type) {
+        switch (type) {
+            case 'success':
+                return 'fa-solid fa-circle-check';
+            case 'warning':
+                return 'fa-solid fa-triangle-exclamation';
+            case 'error':
+                return 'fa-solid fa-circle-exclamation';
+            default:
+                return 'fa-solid fa-circle-info';
+        }
+    }
+
+    function renderEmptyNotifications() {
+        const list = getNotificationsList();
+
+        if (!list) {
+            return;
+        }
+
+        list.replaceChildren();
+
+        const empty = document.createElement('div');
+        empty.className = 'admin-notification-empty';
+
+        const icon = document.createElement('i');
+        icon.className = 'fa-regular fa-bell';
+
+        const title = document.createElement('strong');
+        title.textContent = list.dataset.emptyTitle || 'Sin alertas pendientes';
+
+        const message = document.createElement('span');
+        message.textContent = list.dataset.emptyMessage || 'Los SLA se encuentran bajo control.';
+
+        empty.append(icon, title, message);
+        list.appendChild(empty);
+    }
+
+    function createNotificationItem(notification) {
+        const type = notification.type || 'info';
+        const item = document.createElement('a');
+        item.href = notification.url || '#';
+        item.className = 'admin-notification-item type-' + type + (Number(notification.is_read) === 0 ? ' unread' : '');
+
+        if (notification.id) {
+            item.dataset.notificationId = String(notification.id);
+        }
+
+        const iconWrapper = document.createElement('span');
+        iconWrapper.className = 'admin-notification-icon';
+
+        const icon = document.createElement('i');
+        icon.className = getNotificationIcon(type);
+        iconWrapper.appendChild(icon);
+
+        const content = document.createElement('span');
+        content.className = 'admin-notification-content';
+
+        const title = document.createElement('strong');
+        title.textContent = notification.title || 'Notificación';
+
+        const message = document.createElement('small');
+        message.textContent = notification.message || '';
+
+        const date = document.createElement('em');
+        date.textContent = notification.created_at_label || '';
+
+        content.append(title, message, date);
+        item.append(iconWrapper, content);
+
+        return item;
+    }
+
+    function renderAdminNotifications(notifications) {
+        const list = getNotificationsList();
+
+        if (!list) {
+            return;
+        }
+
+        list.replaceChildren();
+
+        if (!Array.isArray(notifications) || notifications.length === 0) {
+            renderEmptyNotifications();
+            return;
+        }
+
+        const fragment = document.createDocumentFragment();
+
+        notifications.forEach(function (notification) {
+            fragment.appendChild(createNotificationItem(notification));
+        });
+
+        list.appendChild(fragment);
+    }
+
+    async function refreshAdminNotifications(options) {
+        options = options || {};
+
+        if (!getNotificationsTrigger() || adminNotificationFetching) {
+            return;
+        }
+
+        if (document.hidden && !options.force) {
+            return;
+        }
+
+        adminNotificationFetching = true;
+
+        try {
+            const params = new URLSearchParams({
+                current_url: getCurrentRedirectUrl()
+            });
+
+            const response = await fetch(adminNotificationBaseUrl + '/fetch-notifications.php?' + params.toString(), {
+                method: 'GET',
+                credentials: 'same-origin',
+                headers: {
+                    'Accept': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            });
+
+            if (!response.ok) {
+                return;
+            }
+
+            const data = await response.json();
+
+            if (!data || data.success !== true) {
+                return;
+            }
+
+            const unreadCount = Number(data.unread_count || 0);
+            updateNotificationBadge(unreadCount);
+            renderAdminNotifications(data.notifications || []);
+
+            if (unreadCount > adminNotificationLastUnread && !options.silent) {
+                const trigger = getNotificationsTrigger();
+                if (trigger) {
+                    trigger.classList.add('has-new-notifications');
+                    window.setTimeout(function () {
+                        trigger.classList.remove('has-new-notifications');
+                    }, 1400);
+                }
+            }
+
+            adminNotificationLastUnread = unreadCount;
+        } catch (error) {
+            // Se mantiene el contenido actual si el servidor no responde.
+        } finally {
+            adminNotificationFetching = false;
+        }
+    }
+
+    async function markAllNotificationsRead(event, link) {
+        event.preventDefault();
+        event.stopPropagation();
+
+        try {
+            const response = await fetch(link.href || buildMarkAllUrl(), {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: {
+                    'Accept': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            });
+
+            if (!response.ok) {
+                window.location.href = link.href;
+                return;
+            }
+
+            const data = await response.json();
+
+            if (!data || data.success !== true) {
+                window.location.href = link.href;
+                return;
+            }
+
+            updateNotificationBadge(Number(data.unread_count || 0));
+            await refreshAdminNotifications({ force: true, silent: true });
+        } catch (error) {
+            window.location.href = link.href;
         }
     }
 
@@ -463,6 +734,13 @@ $currentUrlEncoded = rawurlencode($currentUrl);
         document.documentElement.dataset.adminTopbarEventsBound = '1';
 
         document.addEventListener('click', function (event) {
+            const markAllLink = event.target.closest('[data-mark-all-notifications]');
+
+            if (markAllLink) {
+                markAllNotificationsRead(event, markAllLink);
+                return;
+            }
+
             const userMenu = document.querySelector('.admin-user-menu');
             const notificationsMenu = document.querySelector('.admin-notification-menu');
 
@@ -479,6 +757,23 @@ $currentUrlEncoded = rawurlencode($currentUrl);
             if (event.key === 'Escape') {
                 setUserMenuOpen(false);
                 setNotificationsMenuOpen(false);
+            }
+        });
+
+        ensureMarkAllLink(adminNotificationLastUnread);
+        window.setTimeout(function () {
+            refreshAdminNotifications({ silent: true });
+        }, 1200);
+
+        if (!adminNotificationTimer && getNotificationsTrigger()) {
+            adminNotificationTimer = window.setInterval(function () {
+                refreshAdminNotifications();
+            }, adminNotificationPollMs);
+        }
+
+        document.addEventListener('visibilitychange', function () {
+            if (!document.hidden) {
+                refreshAdminNotifications({ force: true, silent: true });
             }
         });
     }

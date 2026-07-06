@@ -16,6 +16,10 @@ $clientStats = $clientStats ?? [];
 $feedback = $feedback ?? null;
 $messageAttachments = $messageAttachments ?? [];
 $internalMessageAttachments = $internalMessageAttachments ?? [];
+$closureReasons = $closureReasons ?? [];
+$ticketClosure = $ticketClosure ?? null;
+$canCloseTicket = $canCloseTicket ?? false;
+$closureModuleReady = $closureModuleReady ?? false;
 
 $internalMessages = $internalMessages ?? [];
 $canUseInternalConversation = $canUseInternalConversation ?? in_array((user()['role'] ?? ''), ['ADMIN', 'TECH'], true);
@@ -82,12 +86,54 @@ if (!function_exists('ticketMessageEditor')) {
         string $editorId,
         string $label,
         string $placeholder,
-        bool $allowDocuments = true
+        bool $allowDocuments = true,
+        string $context = 'public'
     ): void {
         $safeId = preg_replace('/[^a-zA-Z0-9_-]/', '', $editorId) ?: 'ticketEditor';
+        $context = in_array($context, ['public', 'internal', 'edit'], true)
+            ? $context
+            : 'public';
+
+        $contextMeta = match ($context) {
+            'internal' => [
+                'title' => $label,
+                'subtitle' => 'Solo será visible para administradores y técnicos.',
+                'badge' => 'Nota interna',
+                'icon' => 'fa-lock',
+            ],
+            'edit' => [
+                'title' => $label,
+                'subtitle' => 'Actualiza el contenido conservando la trazabilidad.',
+                'badge' => 'Edición',
+                'icon' => 'fa-pen-to-square',
+            ],
+            default => [
+                'title' => $label,
+                'subtitle' => 'El solicitante recibirá esta actualización en el historial del ticket.',
+                'badge' => 'Respuesta pública',
+                'icon' => 'fa-message',
+            ],
+        };
         ?>
-        <div class="form-group ticket-rich-editor-field" data-rich-editor="<?= htmlspecialchars($safeId) ?>">
-            <label><?= htmlspecialchars($label) ?></label>
+        <div
+            class="form-group ticket-rich-editor-field ticket-composer-context-<?= htmlspecialchars($context) ?>"
+            data-rich-editor="<?= htmlspecialchars($safeId) ?>"
+            data-editor-context="<?= htmlspecialchars($context) ?>"
+        >
+            <div class="ticket-composer-heading">
+                <span class="ticket-composer-heading-icon" aria-hidden="true">
+                    <i class="fa-solid <?= htmlspecialchars($contextMeta['icon']) ?>"></i>
+                </span>
+
+                <div class="ticket-composer-heading-copy">
+                    <strong><?= htmlspecialchars($contextMeta['title']) ?></strong>
+                    <small><?= htmlspecialchars($contextMeta['subtitle']) ?></small>
+                </div>
+
+                <span class="ticket-composer-channel">
+                    <?= htmlspecialchars($contextMeta['badge']) ?>
+                </span>
+            </div>
 
             <div class="ticket-rich-editor">
                 <div class="ticket-rich-toolbar" role="toolbar" aria-label="Formato del mensaje">
@@ -112,10 +158,10 @@ if (!function_exists('ticketMessageEditor')) {
 
                     <span class="ticket-toolbar-divider"></span>
 
-                    <button type="button" data-rich-command="bold" title="Negrita"><strong>B</strong></button>
-                    <button type="button" data-rich-command="italic" title="Cursiva"><em>I</em></button>
-                    <button type="button" data-rich-command="underline" title="Subrayado"><u>U</u></button>
-                    <button type="button" data-rich-command="strikeThrough" title="Tachado"><s>S</s></button>
+                    <button type="button" data-rich-command="bold" title="Negrita" aria-label="Negrita"><strong>B</strong></button>
+                    <button type="button" data-rich-command="italic" title="Cursiva" aria-label="Cursiva"><em>I</em></button>
+                    <button type="button" data-rich-command="underline" title="Subrayado" aria-label="Subrayado"><u>U</u></button>
+                    <button type="button" data-rich-command="strikeThrough" title="Tachado" aria-label="Tachado"><s>S</s></button>
 
                     <label class="ticket-color-tool" title="Color de texto">
                         <span>A</span>
@@ -136,17 +182,21 @@ if (!function_exists('ticketMessageEditor')) {
                     <button type="button" data-rich-command="justifyRight" title="Alinear a la derecha">→</button>
                     <button type="button" data-rich-command="justifyFull" title="Justificar">☰</button>
 
-                    <button type="button" data-rich-action="link" title="Insertar enlace">🔗</button>
+                    <button type="button" data-rich-action="link" title="Insertar enlace" aria-label="Insertar enlace">
+                        <i class="fa-solid fa-link"></i>
+                    </button>
 
                     <?php if ($allowDocuments): ?>
-                        <button type="button" data-rich-action="image" title="Insertar imagen dentro del mensaje">🖼</button>
+                        <button type="button" data-rich-action="image" title="Insertar imagen dentro del mensaje" aria-label="Insertar imagen">
+                            <i class="fa-regular fa-image"></i>
+                        </button>
                     <?php endif; ?>
 
                     <span class="ticket-toolbar-divider"></span>
 
-                    <button type="button" data-rich-command="undo" title="Deshacer">↶</button>
-                    <button type="button" data-rich-command="redo" title="Rehacer">↷</button>
-                    <button type="button" data-rich-command="removeFormat" title="Limpiar formato">Tx</button>
+                    <button type="button" data-rich-command="undo" title="Deshacer" aria-label="Deshacer">↶</button>
+                    <button type="button" data-rich-command="redo" title="Rehacer" aria-label="Rehacer">↷</button>
+                    <button type="button" data-rich-command="removeFormat" title="Limpiar formato" aria-label="Limpiar formato">Tx</button>
                 </div>
 
                 <div
@@ -157,6 +207,14 @@ if (!function_exists('ticketMessageEditor')) {
                     spellcheck="true"
                     oninput="this.closest('[data-rich-editor]').querySelector('[data-rich-input]').value = this.innerHTML;"
                     onblur="this.closest('[data-rich-editor]').querySelector('[data-rich-input]').value = this.innerHTML;"></div>
+
+                <div class="ticket-composer-meta">
+                    <span>
+                        <i class="fa-solid fa-spell-check" aria-hidden="true"></i>
+                        Revisión ortográfica activa
+                    </span>
+                    <span data-rich-counter>0 caracteres</span>
+                </div>
 
                 <input
                     type="hidden"
@@ -176,16 +234,19 @@ if (!function_exists('ticketMessageEditor')) {
                 <?php endif; ?>
             </div>
 
-            <div class="ticket-rich-editor-help">
-                Enter crea un párrafo normal. Las viñetas o la numeración solo aparecen cuando las activas.
-            </div>
-
             <?php if ($allowDocuments): ?>
-                <div class="ticket-document-upload">
+                <div class="ticket-document-dropzone" data-document-dropzone>
                     <button type="button" class="ticket-document-button" data-document-trigger>
-                        <span>＋</span>
-                        Adjuntar documentos
+                        <i class="fa-solid fa-paperclip" aria-hidden="true"></i>
+                        Seleccionar documentos
                     </button>
+
+                    <div class="ticket-document-dropzone-copy">
+                        <strong>Adjunta archivos o arrástralos aquí</strong>
+                        <small>PDF, Word, Excel, PowerPoint, TXT, CSV o ZIP. Hasta 8 archivos de 15 MB.</small>
+                    </div>
+
+                    <span class="ticket-document-count" data-document-count>Sin archivos</span>
 
                     <input
                         type="file"
@@ -195,8 +256,6 @@ if (!function_exists('ticketMessageEditor')) {
                         accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.zip"
                         multiple
                         hidden>
-
-                    <span>PDF, Word, Excel, PowerPoint, TXT, CSV o ZIP. Máximo 8 archivos de 15 MB.</span>
                 </div>
 
                 <div class="ticket-document-list" data-document-list></div>
@@ -223,6 +282,114 @@ if (!function_exists('ticketMessageAvatarMarkup')) {
         return '<div class="' . $classes . '">'
             . htmlspecialchars(ticketUserInitials($name), ENT_QUOTES, 'UTF-8')
             . '</div>';
+    }
+}
+
+
+if (!function_exists('ticketMessageWasEdited')) {
+    function ticketMessageWasEdited(array $message): bool
+    {
+        if (empty($message['created_at']) || empty($message['updated_at'])) {
+            return false;
+        }
+
+        $createdAt = strtotime((string)$message['created_at']);
+        $updatedAt = strtotime((string)$message['updated_at']);
+
+        if ($createdAt === false || $updatedAt === false) {
+            return false;
+        }
+
+        return ($updatedAt - $createdAt) > 30;
+    }
+}
+
+if (!function_exists('ticketRenderConversationMessages')) {
+    function ticketRenderConversationMessages(array $messages, array $messageAttachments, array $ticket, array $currentUserForView): void
+    {
+        $currentUserId = (int)($currentUserForView['id'] ?? 0);
+        $currentGroupKey = null;
+        $currentGroupOpen = false;
+
+        echo '<div class="ticket-messages-list" data-ticket-message-scroll>';
+
+        foreach ($messages as $message) {
+            $messageUserId = (int)($message['user_id'] ?? 0);
+            $messageRoleSlug = strtolower((string)($message['role'] ?? 'user'));
+            $isOwnMessage = $messageUserId > 0 && $messageUserId === $currentUserId;
+            $groupKey = $messageUserId . '|' . ($isOwnMessage ? 'own' : 'other') . '|' . $messageRoleSlug;
+            $startsNewGroup = $groupKey !== $currentGroupKey;
+
+            if ($startsNewGroup) {
+                if ($currentGroupOpen) {
+                    echo '</div></div></div>';
+                }
+
+                $groupClass = $isOwnMessage ? 'ticket-message-own-group' : 'ticket-message-other-group';
+                echo '<div class="ticket-message-group ' . $groupClass . ' message-role-' . htmlspecialchars($messageRoleSlug, ENT_QUOTES, 'UTF-8') . '">';
+
+                echo ticketMessageAvatarMarkup($message);
+
+                echo '<div class="ticket-message-group-inner">';
+                echo '<div class="ticket-message-group-header">';
+                echo '<strong>' . htmlspecialchars((string)($message['name'] ?? 'Usuario'), ENT_QUOTES, 'UTF-8') . '</strong>';
+                echo '<span class="message-role message-role-badge-' . htmlspecialchars($messageRoleSlug, ENT_QUOTES, 'UTF-8') . '">'
+                    . htmlspecialchars(ticketRoleLabel($message['role'] ?? ''), ENT_QUOTES, 'UTF-8')
+                    . '</span>';
+                echo '</div>';
+                echo '<div class="ticket-message-stack">';
+
+                $currentGroupKey = $groupKey;
+                $currentGroupOpen = true;
+            }
+
+            $messageId = (int)($message['id'] ?? 0);
+            $createdAtLabel = !empty($message['created_at']) ? date('d/m/Y H:i', strtotime((string)$message['created_at'])) : '';
+            $wasEdited = ticketMessageWasEdited($message);
+            $messageFormat = (string)($message['message_format'] ?? 'plain');
+            $messageContent = (string)($message['message'] ?? '');
+
+            echo '<div class="ticket-message-item ticket-message-bubble message-role-' . htmlspecialchars($messageRoleSlug, ENT_QUOTES, 'UTF-8') . ' ' . ($isOwnMessage ? 'ticket-message-own' : 'ticket-message-other') . '">';
+            echo '<div class="ticket-message-bubble-tools">';
+            echo '<span class="message-date">' . htmlspecialchars($createdAtLabel, ENT_QUOTES, 'UTF-8');
+
+            if ($wasEdited) {
+                echo '<small class="message-edited">Editado</small>';
+            }
+
+            echo '</span>';
+
+            if (($ticket['status'] ?? '') !== 'CERRADO') {
+                echo '<div class="message-actions-inline">';
+                echo '<button type="button" class="message-edit-btn" title="Editar mensaje"'
+                    . ' data-message-id="' . $messageId . '"'
+                    . ' data-message-content="' . htmlspecialchars(base64_encode($messageContent), ENT_QUOTES, 'UTF-8') . '"'
+                    . ' data-message-format="' . htmlspecialchars($messageFormat, ENT_QUOTES, 'UTF-8') . '"'
+                    . ' onclick="openEditMessageModalFromButton(this)">'
+                    . '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 24 24">'
+                    . '<path d="M3 17.25V21h3.75L17.8 9.94l-3.75-3.75L3 17.25zm2.92 2.33H5v-.92l8.06-8.06.92.92L5.92 19.58zM20.71 7.04a1.003 1.003 0 0 0 0-1.42L18.37 3.29a1.003 1.003 0 0 0-1.42 0l-1.13 1.13 3.75 3.75 1.14-1.13z"/>'
+                    . '</svg></button>';
+                echo '<a href="#" class="message-delete-btn" title="Eliminar mensaje" onclick="openDeleteModal(' . $messageId . '); return false;">'
+                    . '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 24 24">'
+                    . '<path d="M9 3h6l1 2h4v2H4V5h4l1-2zm1 6h2v9h-2V9zm4 0h2v9h-2V9zM7 9h2v9H7V9z"/>'
+                    . '</svg></a>';
+                echo '</div>';
+            }
+
+            echo '</div>';
+            echo '<div class="ticket-message-body ticket-rich-message is-collapsed" data-collapsible-message>';
+            echo ticketRenderStoredMessage($messageContent, $messageFormat);
+            echo '</div>';
+            echo '<button type="button" class="ticket-message-toggle" data-message-toggle hidden>Ver más</button>';
+            echo ticketRenderAttachmentList($messageAttachments[$messageId] ?? []);
+            echo '</div>';
+        }
+
+        if ($currentGroupOpen) {
+            echo '</div></div></div>';
+        }
+
+        echo '</div>';
     }
 }
 
@@ -257,6 +424,21 @@ $currentUserForView = user();
 $currentRoleForView = $currentUserForView['role'] ?? '';
 $canExportTicketPdf = in_array($currentRoleForView, ['ADMIN', 'TECH'], true);
 $isAdminView = $currentRoleForView === 'ADMIN';
+
+$ticketFlashError = trim((string)($_SESSION['ticket_error'] ?? ''));
+$ticketFlashSuccess = trim((string)($_SESSION['ticket_success'] ?? ''));
+unset($_SESSION['ticket_error'], $_SESSION['ticket_success']);
+
+$ticketStatusCssClass = strtolower((string)preg_replace(
+    '/[^a-z0-9_-]+/i',
+    '-',
+    str_replace('_', '-', (string)($ticket['status'] ?? 'sin-estado'))
+));
+$ticketPriorityCssClass = strtolower((string)preg_replace(
+    '/[^a-z0-9_-]+/i',
+    '-',
+    (string)($ticket['priority'] ?? 'sin-prioridad')
+));
 
 /*
 |--------------------------------------------------------------------------
@@ -302,8 +484,22 @@ require_once __DIR__ . '/../layouts/header.php';
                 <div class="ticket-admin-main">
                     <div class="ticket-detail-layout">
 
+                        <?php if ($ticketFlashError !== ''): ?>
+                            <div class="alert error ticket-detail-feedback">
+                                <i class="fa-solid fa-circle-exclamation" aria-hidden="true"></i>
+                                <span><?= htmlspecialchars($ticketFlashError) ?></span>
+                            </div>
+                        <?php endif; ?>
+
+                        <?php if ($ticketFlashSuccess !== ''): ?>
+                            <div class="alert success ticket-detail-feedback">
+                                <i class="fa-solid fa-circle-check" aria-hidden="true"></i>
+                                <span><?= htmlspecialchars($ticketFlashSuccess) ?></span>
+                            </div>
+                        <?php endif; ?>
+
                         <!-- INFORMACIÓN GENERAL DEL TICKET -->
-                        <section class="card ticket-detail-card">
+                        <section class="card ticket-detail-card ticket-detail-hero-card">
                             <div class="ticket-detail-header">
                                 <div>
                                     <div class="ticket-detail-code">Ticket #<?= (int)$ticket['id'] ?></div>
@@ -313,9 +509,21 @@ require_once __DIR__ . '/../layouts/header.php';
                                     </p>
                                 </div>
 
-                                <div class="ticket-detail-badges">
-                                    <span class="ticket-badge status-badge"><?= htmlspecialchars(ucfirst(strtolower(str_replace('_', ' ', $ticket['status'])))) ?></span>
-                                    <span class="ticket-badge priority-badge">Prioridad: <?= htmlspecialchars($ticket['priority'] ?? 'N/D') ?></span>
+                                <div class="ticket-detail-badges" aria-label="Estado operativo del ticket">
+                                    <span class="ticket-badge status-badge status-<?= htmlspecialchars($ticketStatusCssClass) ?>">
+                                        <i class="fa-solid fa-circle-info" aria-hidden="true"></i>
+                                        <?= htmlspecialchars(ucfirst(strtolower(str_replace('_', ' ', $ticket['status'])))) ?>
+                                    </span>
+
+                                    <span class="ticket-badge priority-badge priority-<?= htmlspecialchars($ticketPriorityCssClass) ?>">
+                                        <i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i>
+                                        Prioridad <?= htmlspecialchars(ucfirst(strtolower((string)($ticket['priority'] ?? 'N/D')))) ?>
+                                    </span>
+
+                                    <span class="ticket-badge sla-status-badge sla-status-<?= htmlspecialchars($slaStatusDisplayClass) ?>">
+                                        <i class="fa-solid fa-stopwatch" aria-hidden="true"></i>
+                                        <?= htmlspecialchars($slaStatusDisplayLabel) ?>
+                                    </span>
 
                                     <?php if (!empty($canExportTicketPdf)): ?>
                                         <button
@@ -325,6 +533,17 @@ require_once __DIR__ . '/../layouts/header.php';
                                         >
                                             <i class="fa-solid fa-file-pdf"></i>
                                             Exportar PDF
+                                        </button>
+                                    <?php endif; ?>
+
+                                    <?php if (!empty($canCloseTicket)): ?>
+                                        <button
+                                            type="button"
+                                            class="ticket-close-action-btn"
+                                            onclick="openCloseTicketModal(<?= (int)$ticket['id'] ?>)"
+                                        >
+                                            <i class="fa-solid fa-circle-check" aria-hidden="true"></i>
+                                            Cerrar ticket
                                         </button>
                                     <?php endif; ?>
                                 </div>
@@ -394,13 +613,13 @@ require_once __DIR__ . '/../layouts/header.php';
                                     <small><?= htmlspecialchars($lastActivity['actor_name'] ?? $lastActivity['actor_role'] ?? 'Sistema') ?></small>
                                 </div>
 
-                                <div class="ticket-summary-item">
+                                <div class="ticket-summary-item ticket-summary-metric ticket-summary-tta">
                                     <span class="ticket-summary-label">TTA</span>
                                     <strong class="<?= $ttaDetailClass ?>"><?= htmlspecialchars($ttaDetailLabel) ?></strong>
                                     <small>Tiempo de primera atención</small>
                                 </div>
 
-                                <div class="ticket-summary-item">
+                                <div class="ticket-summary-item ticket-summary-metric ticket-summary-ttr">
                                     <span class="ticket-summary-label">TTR</span>
                                     <strong class="<?= $ttrDetailClass ?>"><?= htmlspecialchars($ttrDetailLabel) ?></strong>
                                     <small>Tiempo total de resolución</small>
@@ -435,6 +654,28 @@ require_once __DIR__ . '/../layouts/header.php';
                                         <span>Cerrado por cliente</span>
                                         <strong><?= ((int)($ticket['client_closed'] ?? 0) === 1) ? 'Sí' : 'No' ?></strong>
                                     </div>
+
+                                    <?php if (!empty($ticketClosure)): ?>
+                                                            <div class="ticket-closure-summary">
+                                                                <span>Motivo de cierre</span>
+                                                                <strong><?= htmlspecialchars((string)($ticketClosure['reason_name'] ?? 'No registrado')) ?></strong>
+                                                            </div>
+
+                                                            <div class="ticket-closure-summary">
+                                                                <span>Cerrado por</span>
+                                                                <strong>
+                                                                    <?= htmlspecialchars((string)($ticketClosure['closed_by_name'] ?? 'Sistema')) ?>
+                                                                    · <?= htmlspecialchars(ticketRoleLabel($ticketClosure['closed_by_role'] ?? '')) ?>
+                                                                </strong>
+                                                            </div>
+
+                                                            <?php if (trim((string)($ticketClosure['comment'] ?? '')) !== ''): ?>
+                                                                <div class="ticket-closure-summary ticket-closure-comment">
+                                                                    <span>Comentario de cierre</span>
+                                                                    <strong><?= nl2br(htmlspecialchars((string)$ticketClosure['comment'])) ?></strong>
+                                                                </div>
+                                                            <?php endif; ?>
+                                                        <?php endif; ?>
 
                                     <div>
                                         <span>SLA objetivo</span>
@@ -482,16 +723,22 @@ require_once __DIR__ . '/../layouts/header.php';
                         <section class="card ticket-tabs-card">
                             <div class="ticket-tabs-header">
                                 <button class="ticket-tab-btn active" type="button" onclick="showTicketTab('conversationTab', this)">
-                                    Conversación (<?= count($messages ?? []) ?>)
+                                    <i class="fa-regular fa-comments" aria-hidden="true"></i>
+                                    <span>Conversación</span>
+                                    <strong class="ticket-tab-count"><?= count($messages ?? []) ?></strong>
                                 </button>
 
                                 <button class="ticket-tab-btn" type="button" onclick="showTicketTab('activityTab', this)">
-                                    Actividad de ticket (<?= count($activities ?? []) ?>)
+                                    <i class="fa-solid fa-timeline" aria-hidden="true"></i>
+                                    <span>Actividad</span>
+                                    <strong class="ticket-tab-count"><?= count($activities ?? []) ?></strong>
                                 </button>
 
                                 <?php if ($canUseInternalConversation): ?>
                                     <button class="ticket-tab-btn internal-tab-btn" type="button" onclick="showTicketTab('internalConversationTab', this)">
-                                        Conversación interna (<?= count($internalMessages ?? []) ?>)
+                                        <i class="fa-solid fa-lock" aria-hidden="true"></i>
+                                        <span>Conversación interna</span>
+                                        <strong class="ticket-tab-count"><?= count($internalMessages ?? []) ?></strong>
                                     </button>
                                 <?php endif; ?>
                             </div>
@@ -504,70 +751,7 @@ require_once __DIR__ . '/../layouts/header.php';
                                 </div>
 
                                 <?php if (!empty($messages)): ?>
-                                    <div class="ticket-messages-list">
-                                        <?php foreach ($messages as $message): ?>
-                                            <div class="ticket-message-item">
-                                                <div class="ticket-message-top">
-                                                    <div class="ticket-message-author">
-                                                        <?= ticketMessageAvatarMarkup($message) ?>
-                                                        <div class="ticket-message-author-info">
-                                                            <strong><?= htmlspecialchars($message['name']) ?></strong>
-                                                            <span class="message-role"><?= htmlspecialchars(ticketRoleLabel($message['role'] ?? '')) ?></span>
-                                                        </div>
-                                                    </div>
-
-                                                    <div class="message-right">
-                                                        <span class="message-date">
-                                                            <?= !empty($message['created_at']) ? date('d/m/Y H:i', strtotime($message['created_at'])) : '' ?>
-                                                            <?php if (!empty($message['updated_at'])): ?>
-                                                                <small class="message-edited">Editado</small>
-                                                            <?php endif; ?>
-                                                        </span>
-
-                                                        <?php if (($ticket['status'] ?? '') !== 'CERRADO'): ?>
-                                                            <div class="message-actions-inline">
-                                                                <button
-                                                                    type="button"
-                                                                    class="message-edit-btn"
-                                                                    title="Editar mensaje"
-                                                                    data-message-id="<?= (int)$message['id'] ?>"
-                                                                    data-message-content="<?= htmlspecialchars(base64_encode((string)($message['message'] ?? '')), ENT_QUOTES, 'UTF-8') ?>"
-                                                                    data-message-format="<?= htmlspecialchars($message['message_format'] ?? 'plain') ?>"
-                                                                    onclick="openEditMessageModalFromButton(this)"
-                                                                >
-                                                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 24 24">
-                                                                        <path d="M3 17.25V21h3.75L17.8 9.94l-3.75-3.75L3 17.25zm2.92 2.33H5v-.92l8.06-8.06.92.92L5.92 19.58zM20.71 7.04a1.003 1.003 0 0 0 0-1.42L18.37 3.29a1.003 1.003 0 0 0-1.42 0l-1.13 1.13 3.75 3.75 1.14-1.13z"/>
-                                                                    </svg>
-                                                                </button>
-
-                                                                <a
-                                                                    href="#"
-                                                                    class="message-delete-btn"
-                                                                    title="Eliminar mensaje"
-                                                                    onclick="openDeleteModal(<?= (int)$message['id'] ?>); return false;"
-                                                                >
-                                                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 24 24">
-                                                                        <path d="M9 3h6l1 2h4v2H4V5h4l1-2zm1 6h2v9h-2V9zm4 0h2v9h-2V9zM7 9h2v9H7V9z"/>
-                                                                    </svg>
-                                                                </a>
-                                                            </div>
-                                                        <?php endif; ?>
-                                                    </div>
-                                                </div>
-
-                                                <div class="ticket-message-body ticket-rich-message">
-                                                    <?= ticketRenderStoredMessage(
-                                                        $message['message'] ?? '',
-                                                        $message['message_format'] ?? 'plain'
-                                                    ) ?>
-                                                </div>
-
-                                                <?= ticketRenderAttachmentList(
-                                                    $messageAttachments[(int)$message['id']] ?? []
-                                                ) ?>
-                                            </div>
-                                        <?php endforeach; ?>
-                                    </div>
+                                    <?php ticketRenderConversationMessages($messages, $messageAttachments, $ticket, $currentUserForView); ?>
                                 <?php else: ?>
                                     <div class="empty-ticket-box">
                                         <h4>No hay mensajes todavía</h4>
@@ -704,13 +888,15 @@ require_once __DIR__ . '/../layouts/header.php';
                                             <?php ticketMessageEditor(
                                                 'adminInternalReply',
                                                 'Mensaje interno',
-                                                'Escribe una nota privada para el equipo técnico.'
+                                                'Escribe una nota privada para el equipo técnico.',
+                                                true,
+                                                'internal'
                                             ); ?>
 
                                             <div class="ticket-form-actions">
-                                                <button type="submit" class="btn-primary">
+                                                <button type="submit" class="btn-primary ticket-send-button" data-loading-label="Enviando nota...">
                                                     <i class="fa-solid fa-lock"></i>
-                                                    Enviar mensaje interno
+                                                    <span>Enviar mensaje interno</span>
                                                 </button>
                                             </div>
                                         </form>
@@ -758,9 +944,9 @@ require_once __DIR__ . '/../layouts/header.php';
 
                                     <div class="ticket-form-actions">
                                         <a href="/helpdesk-php/admin-tickets.php" class="btn-secondary">Atrás</a>
-                                        <button type="submit" class="btn-primary">
+                                        <button type="submit" class="btn-primary ticket-send-button" data-loading-label="Enviando respuesta...">
                                             <i class="fa-solid fa-paper-plane"></i>
-                                            Enviar respuesta
+                                            <span>Enviar respuesta</span>
                                         </button>
                                     </div>
                                 </form>
@@ -1029,7 +1215,21 @@ require_once __DIR__ . '/../layouts/header.php';
 
     <div class="ticket-detail-layout">
 
-        <section class="card ticket-detail-card">
+        <?php if ($ticketFlashError !== ''): ?>
+            <div class="alert error ticket-detail-feedback">
+                <i class="fa-solid fa-circle-exclamation" aria-hidden="true"></i>
+                <span><?= htmlspecialchars($ticketFlashError) ?></span>
+            </div>
+        <?php endif; ?>
+
+        <?php if ($ticketFlashSuccess !== ''): ?>
+            <div class="alert success ticket-detail-feedback">
+                <i class="fa-solid fa-circle-check" aria-hidden="true"></i>
+                <span><?= htmlspecialchars($ticketFlashSuccess) ?></span>
+            </div>
+        <?php endif; ?>
+
+        <section class="card ticket-detail-card ticket-detail-hero-card">
             <div class="ticket-detail-header">
                 <div>
                     <div class="ticket-detail-code">Ticket #<?= (int)$ticket['id'] ?></div>
@@ -1039,9 +1239,21 @@ require_once __DIR__ . '/../layouts/header.php';
                     </p>
                 </div>
 
-                <div class="ticket-detail-badges">
-                    <span class="ticket-badge status-badge"><?= htmlspecialchars($ticket['status'] ?? 'N/D') ?></span>
-                    <span class="ticket-badge priority-badge">Prioridad: <?= htmlspecialchars($ticket['priority'] ?? 'N/D') ?></span>
+                <div class="ticket-detail-badges" aria-label="Estado operativo del ticket">
+                    <span class="ticket-badge status-badge status-<?= htmlspecialchars($ticketStatusCssClass) ?>">
+                        <i class="fa-solid fa-circle-info" aria-hidden="true"></i>
+                        <?= htmlspecialchars(ucfirst(strtolower(str_replace('_', ' ', (string)($ticket['status'] ?? 'N/D'))))) ?>
+                    </span>
+
+                    <span class="ticket-badge priority-badge priority-<?= htmlspecialchars($ticketPriorityCssClass) ?>">
+                        <i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i>
+                        Prioridad <?= htmlspecialchars(ucfirst(strtolower((string)($ticket['priority'] ?? 'N/D')))) ?>
+                    </span>
+
+                    <span class="ticket-badge sla-status-badge sla-status-<?= htmlspecialchars($slaStatusDisplayClass) ?>">
+                        <i class="fa-solid fa-stopwatch" aria-hidden="true"></i>
+                        <?= htmlspecialchars($slaStatusDisplayLabel) ?>
+                    </span>
 
                     <?php if (!empty($canExportTicketPdf)): ?>
                         <button
@@ -1051,6 +1263,17 @@ require_once __DIR__ . '/../layouts/header.php';
                         >
                             <i class="fa-solid fa-file-pdf"></i>
                             Exportar PDF
+                        </button>
+                    <?php endif; ?>
+
+                    <?php if (!empty($canCloseTicket)): ?>
+                        <button
+                            type="button"
+                            class="ticket-close-action-btn"
+                            onclick="openCloseTicketModal(<?= (int)$ticket['id'] ?>)"
+                        >
+                            <i class="fa-solid fa-circle-check" aria-hidden="true"></i>
+                            Cerrar ticket
                         </button>
                     <?php endif; ?>
                 </div>
@@ -1119,13 +1342,13 @@ require_once __DIR__ . '/../layouts/header.php';
                     <small><?= htmlspecialchars($lastActivity['actor_name'] ?? $lastActivity['actor_role'] ?? 'Sistema') ?></small>
                 </div>
 
-                <div class="ticket-summary-item">
+                <div class="ticket-summary-item ticket-summary-metric ticket-summary-tta">
                     <span class="ticket-summary-label">TTA</span>
                     <strong class="<?= $ttaDetailClass ?>"><?= htmlspecialchars($ttaDetailLabel) ?></strong>
                     <small>Tiempo de primera atención</small>
                 </div>
 
-                <div class="ticket-summary-item">
+                <div class="ticket-summary-item ticket-summary-metric ticket-summary-ttr">
                     <span class="ticket-summary-label">TTR</span>
                     <strong class="<?= $ttrDetailClass ?>"><?= htmlspecialchars($ttrDetailLabel) ?></strong>
                     <small>Tiempo total de resolución</small>
@@ -1173,6 +1396,28 @@ require_once __DIR__ . '/../layouts/header.php';
                         <strong><?= ((int)($ticket['client_closed'] ?? 0) === 1) ? 'Sí' : 'No' ?></strong>
                     </div>
 
+                    <?php if (!empty($ticketClosure)): ?>
+                                            <div class="ticket-closure-summary">
+                                                <span>Motivo de cierre</span>
+                                                <strong><?= htmlspecialchars((string)($ticketClosure['reason_name'] ?? 'No registrado')) ?></strong>
+                                            </div>
+
+                                            <div class="ticket-closure-summary">
+                                                <span>Cerrado por</span>
+                                                <strong>
+                                                    <?= htmlspecialchars((string)($ticketClosure['closed_by_name'] ?? 'Sistema')) ?>
+                                                    · <?= htmlspecialchars(ticketRoleLabel($ticketClosure['closed_by_role'] ?? '')) ?>
+                                                </strong>
+                                            </div>
+
+                                            <?php if (trim((string)($ticketClosure['comment'] ?? '')) !== ''): ?>
+                                                <div class="ticket-closure-summary ticket-closure-comment">
+                                                    <span>Comentario de cierre</span>
+                                                    <strong><?= nl2br(htmlspecialchars((string)$ticketClosure['comment'])) ?></strong>
+                                                </div>
+                                            <?php endif; ?>
+                                        <?php endif; ?>
+
                     <?php if (in_array($currentRoleForView, ['ADMIN', 'TECH'], true)): ?>
                         <div>
                             <span>Última acción por</span>
@@ -1181,22 +1426,6 @@ require_once __DIR__ . '/../layouts/header.php';
                     <?php endif; ?>
                 </div>
             </details>
-
-            <?php if (
-                (user()['role'] ?? '') === 'CLIENT' &&
-                (int)($ticket['requester_id'] ?? 0) === (int)(user()['id'] ?? 0) &&
-                ($ticket['status'] ?? '') !== 'CERRADO'
-            ): ?>
-                <div class="ticket-form-actions" style="margin-top:18px;">
-                    <a
-                        href="#"
-                        class="btn-primary"
-                        onclick="openCloseTicketModal(<?= (int)$ticket['id'] ?>); return false;"
-                    >
-                        Cerrar ticket
-                    </a>
-                </div>
-            <?php endif; ?>
         </section>
 
         <?php if ($currentRoleForView === 'TECH'): ?>
@@ -1311,16 +1540,22 @@ require_once __DIR__ . '/../layouts/header.php';
         <section class="card ticket-tabs-card">
             <div class="ticket-tabs-header">
                 <button class="ticket-tab-btn active" type="button" onclick="showTicketTab('conversationTab', this)">
-                    Conversación (<?= count($messages ?? []) ?>)
+                    <i class="fa-regular fa-comments" aria-hidden="true"></i>
+                    <span>Conversación</span>
+                    <strong class="ticket-tab-count"><?= count($messages ?? []) ?></strong>
                 </button>
 
                 <button class="ticket-tab-btn" type="button" onclick="showTicketTab('activityTab', this)">
-                    Actividad de ticket (<?= count($activities ?? []) ?>)
+                    <i class="fa-solid fa-timeline" aria-hidden="true"></i>
+                    <span>Actividad</span>
+                    <strong class="ticket-tab-count"><?= count($activities ?? []) ?></strong>
                 </button>
 
                 <?php if ($canUseInternalConversation): ?>
                     <button class="ticket-tab-btn internal-tab-btn" type="button" onclick="showTicketTab('internalConversationTab', this)">
-                        Conversación interna (<?= count($internalMessages ?? []) ?>)
+                        <i class="fa-solid fa-lock" aria-hidden="true"></i>
+                        <span>Conversación interna</span>
+                        <strong class="ticket-tab-count"><?= count($internalMessages ?? []) ?></strong>
                     </button>
                 <?php endif; ?>
             </div>
@@ -1332,77 +1567,8 @@ require_once __DIR__ . '/../layouts/header.php';
                 </div>
 
                 <?php if (!empty($messages)): ?>
-                    <div class="ticket-messages-list">
-                        <?php foreach ($messages as $message): ?>
-                            <div class="ticket-message-item">
-                                <div class="ticket-message-top">
-                                    <div class="ticket-message-author">
-                                        <?= ticketMessageAvatarMarkup($message) ?>
-                                        <div class="ticket-message-author-info">
-                                            <strong><?= htmlspecialchars($message['name']) ?></strong>
-                                            <span class="message-role"><?= htmlspecialchars(ticketRoleLabel($message['role'] ?? '')) ?></span>
-                                        </div>
-                                    </div>
-
-                                    <div class="message-right">
-                                        <span class="message-date">
-                                            <?= !empty($message['created_at']) ? date('d/m/Y H:i', strtotime($message['created_at'])) : '' ?>
-                                                            <?php if (!empty($message['updated_at'])): ?>
-                                                                <small class="message-edited">Editado</small>
-                                                            <?php endif; ?>
-                                        </span>
-
-                                        <?php if (
-                                            ($ticket['status'] ?? '') !== 'CERRADO' &&
-                                            (
-                                                (user()['role'] ?? '') !== 'CLIENT' ||
-                                                (int)$message['user_id'] == (int)(user()['id'] ?? 0)
-                                            )
-                                        ): ?>
-                                            <div class="message-actions-inline">
-                                                                <button
-                                                                    type="button"
-                                                                    class="message-edit-btn"
-                                                                    title="Editar mensaje"
-                                                                    data-message-id="<?= (int)$message['id'] ?>"
-                                                                    data-message-content="<?= htmlspecialchars(base64_encode((string)($message['message'] ?? '')), ENT_QUOTES, 'UTF-8') ?>"
-                                                                    data-message-format="<?= htmlspecialchars($message['message_format'] ?? 'plain') ?>"
-                                                                    onclick="openEditMessageModalFromButton(this)"
-                                                                >
-                                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 24 24">
-                                                        <path d="M3 17.25V21h3.75L17.8 9.94l-3.75-3.75L3 17.25zm2.92 2.33H5v-.92l8.06-8.06.92.92L5.92 19.58zM20.71 7.04a1.003 1.003 0 0 0 0-1.42L18.37 3.29a1.003 1.003 0 0 0-1.42 0l-1.13 1.13 3.75 3.75 1.14-1.13z"/>
-                                                    </svg>
-                                                                </button>
-
-                                                <a
-                                                    href="#"
-                                                    class="message-delete-btn"
-                                                    title="Eliminar mensaje"
-                                                    onclick="openDeleteModal(<?= (int)$message['id'] ?>); return false;"
-                                                >
-                                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 24 24">
-                                                        <path d="M9 3h6l1 2h4v2H4V5h4l1-2zm1 6h2v9h-2V9zm4 0h2v9h-2V9zM7 9h2v9H7V9z"/>
-                                                    </svg>
-                                                </a>
-                                            </div>
-                                        <?php endif; ?>
-                                    </div>
-                                </div>
-
-                                <div class="ticket-message-body ticket-rich-message">
-                                    <?= ticketRenderStoredMessage(
-                                        $message['message'] ?? '',
-                                        $message['message_format'] ?? 'plain'
-                                    ) ?>
-                                </div>
-
-                                <?= ticketRenderAttachmentList(
-                                    $messageAttachments[(int)$message['id']] ?? []
-                                ) ?>
-                            </div>
-                        <?php endforeach; ?>
-                    </div>
-                <?php else: ?>
+                                    <?php ticketRenderConversationMessages($messages, $messageAttachments, $ticket, $currentUserForView); ?>
+                                <?php else: ?>
                     <div class="empty-ticket-box">
                         <h4>No hay mensajes todavía</h4>
                         <p>Este ticket aún no tiene respuestas registradas.</p>
@@ -1509,13 +1675,15 @@ require_once __DIR__ . '/../layouts/header.php';
                                             <?php ticketMessageEditor(
                                                 'techInternalReply',
                                                 'Mensaje interno',
-                                                'Escribe una nota privada para el equipo técnico.'
+                                                'Escribe una nota privada para el equipo técnico.',
+                                                true,
+                                                'internal'
                                             ); ?>
 
                                             <div class="ticket-form-actions">
-                                                <button type="submit" class="btn-primary">
+                                                <button type="submit" class="btn-primary ticket-send-button" data-loading-label="Enviando nota...">
                                                     <i class="fa-solid fa-lock"></i>
-                                                    Enviar mensaje interno
+                                                    <span>Enviar mensaje interno</span>
                                                 </button>
                                             </div>
                                         </form>
@@ -1548,9 +1716,9 @@ require_once __DIR__ . '/../layouts/header.php';
 
                                     <div class="ticket-form-actions">
                                         <a href="/helpdesk-php/home.php" class="btn-secondary">Atrás</a>
-                                        <button type="submit" class="btn-primary">
+                                        <button type="submit" class="btn-primary ticket-send-button" data-loading-label="Enviando respuesta...">
                                             <i class="fa-solid fa-paper-plane"></i>
-                                            Enviar respuesta
+                                            <span>Enviar respuesta</span>
                                         </button>
                                     </div>
                                 </form>
@@ -1655,7 +1823,8 @@ require_once __DIR__ . '/../layouts/header.php';
                     'editMessageRich',
                     'Mensaje',
                     'Actualiza el contenido del mensaje.',
-                    false
+                    false,
+                    'edit'
                 ); ?>
             </div>
 
@@ -1698,32 +1867,141 @@ require_once __DIR__ . '/../layouts/header.php';
 <!-- ==========================================================
      MODAL CERRAR TICKET
      ========================================================== -->
-<div class="modal-overlay" id="closeTicketModal">
-    <div class="custom-modal">
-        <div class="custom-modal-header">
-            <h3>Cerrar ticket</h3>
-            <button type="button" class="modal-close-btn" onclick="closeCloseTicketModal()">×</button>
-        </div>
+<div class="modal-overlay" id="closeTicketModal" aria-hidden="true">
+    <div class="custom-modal ticket-close-modal" role="dialog" aria-modal="true" aria-labelledby="closeTicketModalTitle">
+        <form action="/helpdesk-php/close-ticket.php" method="POST" id="closeTicketForm">
+            <input
+                type="hidden"
+                name="csrf_token"
+                value="<?= htmlspecialchars((string)($closeTicketCsrfToken ?? systemSlaCsrfToken())) ?>"
+            >
+            <input type="hidden" name="ticket_id" id="closeTicketFormId" value="">
+            <input type="hidden" name="confirm_close" id="confirmCloseTicketValue" value="0">
 
-        <div class="custom-modal-body">
-            <p>¿Está seguro de que desea cerrar este ticket?</p>
+            <div class="custom-modal-header ticket-close-modal-header">
+                <div>
+                    <span class="ticket-close-modal-eyebrow">Finalización de la atención</span>
+                    <h3 id="closeTicketModalTitle">Cerrar ticket #<?= (int)$ticket['id'] ?></h3>
+                    <p>Selecciona la causa que describe el resultado final de la incidencia.</p>
+                </div>
 
-            <div class="custom-modal-warning">
-                <label class="modal-checkbox-label">
-                    <input type="checkbox" id="confirmCloseTicketCheckbox" onchange="toggleCloseTicketButton()">
-                    <span>Confirmo que deseo cerrar este ticket y finalizar la atención.</span>
-                </label>
+                <button
+                    type="button"
+                    class="modal-close-btn"
+                    onclick="closeCloseTicketModal()"
+                    aria-label="Cerrar modal"
+                >×</button>
             </div>
-        </div>
 
-        <div class="custom-modal-footer">
-            <button type="button" class="btn-secondary" onclick="closeCloseTicketModal()">Cancelar</button>
-            <form action="/helpdesk-php/close-ticket.php" method="POST" id="closeTicketForm" style="margin:0;">
-                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars((string)($closeTicketCsrfToken ?? systemSlaCsrfToken())) ?>">
-                <input type="hidden" name="ticket_id" id="closeTicketFormId" value="">
-                <button type="submit" id="confirmCloseTicketBtn" class="btn-primary disabled-delete-btn" disabled>Aceptar</button>
-            </form>
-        </div>
+            <div class="custom-modal-body ticket-close-modal-body">
+                <div class="ticket-close-summary">
+                    <span class="ticket-close-summary-icon" aria-hidden="true">
+                        <i class="fa-solid fa-ticket"></i>
+                    </span>
+                    <div>
+                        <small>Ticket que será cerrado</small>
+                        <strong>#<?= (int)$ticket['id'] ?> · <?= htmlspecialchars((string)($ticket['subject'] ?? 'Sin asunto')) ?></strong>
+                        <p>El cronómetro SLA se detendrá y el cierre quedará registrado en la trazabilidad.</p>
+                    </div>
+                </div>
+
+                <?php if (empty($closureReasons)): ?>
+                    <div class="ticket-close-module-warning">
+                        <i class="fa-solid fa-triangle-exclamation" aria-hidden="true"></i>
+                        <span>No hay motivos activos. Configúralos en Herramientas → Motivos de cierre.</span>
+                    </div>
+                <?php else: ?>
+                    <div class="ticket-close-field">
+                        <label for="closureReasonId">
+                            Motivo de cierre
+                            <span>*</span>
+                        </label>
+                        <select
+                            name="closure_reason_id"
+                            id="closureReasonId"
+                            required
+                            onchange="updateCloseReasonDetails()"
+                        >
+                            <option value="">Selecciona un motivo</option>
+                            <?php foreach ($closureReasons as $reason): ?>
+                                <option
+                                    value="<?= (int)$reason['id'] ?>"
+                                    data-description="<?= htmlspecialchars((string)($reason['description'] ?? ''), ENT_QUOTES, 'UTF-8') ?>"
+                                    data-requires-comment="<?= (int)($reason['requires_comment'] ?? 0) === 1 ? '1' : '0' ?>"
+                                >
+                                    <?= htmlspecialchars((string)($reason['name'] ?? 'Sin nombre')) ?>
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+
+                    <div class="ticket-close-reason-preview" id="closeReasonPreview" hidden>
+                        <span class="ticket-close-reason-preview-icon" aria-hidden="true">
+                            <i class="fa-solid fa-circle-info"></i>
+                        </span>
+                        <div>
+                            <strong id="closeReasonPreviewTitle">Motivo seleccionado</strong>
+                            <p id="closeReasonPreviewDescription"></p>
+                        </div>
+                    </div>
+
+                    <div class="ticket-close-field">
+                        <div class="ticket-close-label-row">
+                            <label for="closureComment">
+                                Comentario de cierre
+                                <span id="closureCommentRequiredMark" hidden>*</span>
+                            </label>
+                            <small id="closureCommentRequirement">Opcional</small>
+                        </div>
+
+                        <textarea
+                            name="closure_comment"
+                            id="closureComment"
+                            rows="5"
+                            maxlength="2000"
+                            placeholder="Resume la solución aplicada, validación realizada o detalle necesario para el cierre."
+                            oninput="validateCloseTicketForm()"
+                        ></textarea>
+
+                        <div class="ticket-close-comment-meta">
+                            <span>Este comentario formará parte de la trazabilidad.</span>
+                            <span id="closureCommentCounter">0 / 2000</span>
+                        </div>
+                    </div>
+
+                    <label class="ticket-close-confirmation">
+                        <input
+                            type="checkbox"
+                            id="confirmCloseTicketCheckbox"
+                            onchange="toggleCloseTicketButton()"
+                        >
+                        <span class="ticket-close-confirmation-box" aria-hidden="true">
+                            <i class="fa-solid fa-check"></i>
+                        </span>
+                        <span>
+                            <strong>Confirmo el cierre definitivo</strong>
+                            <small>El ticket quedará en estado CERRADO y ya no admitirá nuevas respuestas.</small>
+                        </span>
+                    </label>
+                <?php endif; ?>
+            </div>
+
+            <div class="custom-modal-footer ticket-close-modal-footer">
+                <button type="button" class="btn-secondary" onclick="closeCloseTicketModal()">
+                    Cancelar
+                </button>
+
+                <button
+                    type="submit"
+                    id="confirmCloseTicketBtn"
+                    class="ticket-close-confirm-btn"
+                    disabled
+                >
+                    <i class="fa-solid fa-circle-check" aria-hidden="true"></i>
+                    <span>Cerrar ticket</span>
+                </button>
+            </div>
+        </form>
     </div>
 </div>
 
@@ -2379,43 +2657,178 @@ function toggleDeleteButton() {
 /**
  * Modal cerrar ticket
  */
+function updateCloseReasonDetails() {
+    const select = document.getElementById('closureReasonId');
+    const preview = document.getElementById('closeReasonPreview');
+    const previewTitle = document.getElementById('closeReasonPreviewTitle');
+    const previewDescription = document.getElementById('closeReasonPreviewDescription');
+    const comment = document.getElementById('closureComment');
+    const requiredMark = document.getElementById('closureCommentRequiredMark');
+    const requirement = document.getElementById('closureCommentRequirement');
+
+    if (!select) {
+        validateCloseTicketForm();
+        return;
+    }
+
+    const option = select.selectedOptions[0];
+    const hasReason = Boolean(select.value);
+    const requiresComment = option?.dataset.requiresComment === '1';
+    const description = option?.dataset.description?.trim() || 'Sin descripción adicional.';
+
+    if (preview) {
+        preview.hidden = !hasReason;
+    }
+
+    if (previewTitle) {
+        previewTitle.textContent = hasReason ? option.textContent.trim() : 'Motivo seleccionado';
+    }
+
+    if (previewDescription) {
+        previewDescription.textContent = description;
+    }
+
+    if (comment) {
+        comment.required = requiresComment;
+        comment.setAttribute('aria-required', requiresComment ? 'true' : 'false');
+    }
+
+    if (requiredMark) {
+        requiredMark.hidden = !requiresComment;
+    }
+
+    if (requirement) {
+        requirement.textContent = requiresComment ? 'Obligatorio para este motivo' : 'Opcional';
+        requirement.classList.toggle('is-required', requiresComment);
+    }
+
+    validateCloseTicketForm();
+}
+
+function updateClosureCommentCounter() {
+    const comment = document.getElementById('closureComment');
+    const counter = document.getElementById('closureCommentCounter');
+
+    if (!comment || !counter) {
+        return;
+    }
+
+    counter.textContent = String(comment.value.length) + ' / 2000';
+}
+
+function validateCloseTicketForm() {
+    const select = document.getElementById('closureReasonId');
+    const comment = document.getElementById('closureComment');
+    const checkbox = document.getElementById('confirmCloseTicketCheckbox');
+    const confirmValue = document.getElementById('confirmCloseTicketValue');
+    const confirmBtn = document.getElementById('confirmCloseTicketBtn');
+
+    if (!confirmBtn) {
+        return false;
+    }
+
+    const option = select?.selectedOptions[0];
+    const requiresComment = option?.dataset.requiresComment === '1';
+    const hasReason = Boolean(select?.value);
+    const hasRequiredComment = !requiresComment || Boolean(comment?.value.trim());
+    const isConfirmed = Boolean(checkbox?.checked);
+    const isValid = Boolean(closeTicketId && hasReason && hasRequiredComment && isConfirmed);
+
+    if (confirmValue) {
+        confirmValue.value = isConfirmed ? '1' : '0';
+    }
+
+    confirmBtn.disabled = !isValid;
+    confirmBtn.classList.toggle('is-ready', isValid);
+
+    updateClosureCommentCounter();
+
+    return isValid;
+}
+
 function openCloseTicketModal(ticketId) {
-    closeTicketId = ticketId;
+    closeTicketId = Number(ticketId) || null;
 
     const modal = document.getElementById('closeTicketModal');
-    const checkbox = document.getElementById('confirmCloseTicketCheckbox');
-    const confirmBtn = document.getElementById('confirmCloseTicketBtn');
+    const form = document.getElementById('closeTicketForm');
     const ticketInput = document.getElementById('closeTicketFormId');
+    const select = document.getElementById('closureReasonId');
+    const comment = document.getElementById('closureComment');
+    const checkbox = document.getElementById('confirmCloseTicketCheckbox');
+    const confirmValue = document.getElementById('confirmCloseTicketValue');
+    const confirmBtn = document.getElementById('confirmCloseTicketBtn');
 
-    if (!modal || !checkbox || !confirmBtn || !ticketInput) return;
+    if (!modal || !form || !ticketInput || !closeTicketId) {
+        return;
+    }
 
-    checkbox.checked = false;
-    ticketInput.value = String(ticketId);
-    confirmBtn.classList.add('disabled-delete-btn');
-    confirmBtn.disabled = true;
+    form.reset();
+    ticketInput.value = String(closeTicketId);
+
+    if (comment) {
+        comment.required = false;
+    }
+
+    if (checkbox) {
+        checkbox.checked = false;
+    }
+
+    if (confirmValue) {
+        confirmValue.value = '0';
+    }
+
+    if (confirmBtn) {
+        confirmBtn.disabled = true;
+        confirmBtn.classList.remove('is-ready', 'is-loading');
+        confirmBtn.innerHTML = '<i class="fa-solid fa-circle-check" aria-hidden="true"></i><span>Cerrar ticket</span>';
+    }
+
     modal.classList.add('show');
+    modal.setAttribute('aria-hidden', 'false');
+    document.body.classList.add('ticket-close-modal-open');
+
+    updateCloseReasonDetails();
+    updateClosureCommentCounter();
+
+    window.setTimeout(function () {
+        select?.focus();
+    }, 60);
 }
 
 function closeCloseTicketModal() {
     const modal = document.getElementById('closeTicketModal');
-    if (modal) modal.classList.remove('show');
+
+    if (modal) {
+        modal.classList.remove('show');
+        modal.setAttribute('aria-hidden', 'true');
+    }
+
+    document.body.classList.remove('ticket-close-modal-open');
     closeTicketId = null;
 }
 
 function toggleCloseTicketButton() {
-    const checkbox = document.getElementById('confirmCloseTicketCheckbox');
-    const confirmBtn = document.getElementById('confirmCloseTicketBtn');
-
-    if (!checkbox || !confirmBtn) return;
-
-    if (checkbox.checked && closeTicketId) {
-        confirmBtn.classList.remove('disabled-delete-btn');
-        confirmBtn.disabled = false;
-    } else {
-        confirmBtn.classList.add('disabled-delete-btn');
-        confirmBtn.disabled = true;
-    }
+    validateCloseTicketForm();
 }
+
+document.getElementById('closureComment')?.addEventListener('input', function () {
+    validateCloseTicketForm();
+});
+
+document.getElementById('closeTicketForm')?.addEventListener('submit', function (event) {
+    if (!validateCloseTicketForm()) {
+        event.preventDefault();
+        return;
+    }
+
+    const button = document.getElementById('confirmCloseTicketBtn');
+
+    if (button) {
+        button.disabled = true;
+        button.classList.add('is-loading');
+        button.innerHTML = '<i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i><span>Cerrando ticket...</span>';
+    }
+});
 
 /**
  * Acordeón de tickets del cliente
@@ -2549,6 +2962,9 @@ document.addEventListener('keydown', function (e) {
         const documentsInput = field.querySelector('[data-rich-documents]');
         const documentTrigger = field.querySelector('[data-document-trigger]');
         const documentList = field.querySelector('[data-document-list]');
+        const documentDropzone = field.querySelector('[data-document-dropzone]');
+        const documentCount = field.querySelector('[data-document-count]');
+        const characterCounter = field.querySelector('[data-rich-counter]');
 
         if (!editor || !hiddenInput || !toolbar) {
             return;
@@ -2713,6 +3129,14 @@ document.addEventListener('keydown', function (e) {
             const files = Array.from(documentsInput.files || []);
             documentList.innerHTML = '';
 
+            if (documentCount) {
+                documentCount.textContent = files.length === 0
+                    ? 'Sin archivos'
+                    : files.length + (files.length === 1 ? ' archivo' : ' archivos');
+            }
+
+            documentDropzone?.classList.toggle('has-files', files.length > 0);
+
             files.forEach((file, index) => {
                 const item = document.createElement('div');
                 item.className = 'ticket-document-chip';
@@ -2742,37 +3166,89 @@ document.addEventListener('keydown', function (e) {
             documentsInput?.click();
         });
 
-        documentsInput?.addEventListener('change', function () {
-            const selected = Array.from(this.files || []);
-
-            if (selected.length > 8) {
-                window.alert('Solo puedes adjuntar hasta 8 documentos.');
-                this.value = '';
+        function appendDocuments(selectedFiles) {
+            if (!documentsInput || selectedFiles.length === 0) {
                 return;
             }
 
-            for (const file of selected) {
+            const currentFiles = Array.from(documentsInput.files || []);
+            const mergedFiles = [...currentFiles];
+
+            for (const file of selectedFiles) {
+                if (mergedFiles.length >= 8) {
+                    window.alert('Solo puedes adjuntar hasta 8 documentos.');
+                    break;
+                }
+
                 if (file.size > 15 * 1024 * 1024) {
-                    window.alert('Cada documento debe pesar como máximo 15 MB.');
-                    this.value = '';
-                    return;
+                    window.alert('El archivo "' + file.name + '" supera el límite de 15 MB.');
+                    continue;
+                }
+
+                const duplicate = mergedFiles.some(existing =>
+                    existing.name === file.name
+                    && existing.size === file.size
+                    && existing.lastModified === file.lastModified
+                );
+
+                if (!duplicate) {
+                    mergedFiles.push(file);
                 }
             }
 
-            if (documentTransfer) {
-                Array.from(this.files || []).forEach(file => {
-                    if (documentTransfer.items.length < 8) {
-                        documentTransfer.items.add(file);
-                    }
-                });
+            rebuildDocumentInput(mergedFiles);
+        }
 
-                this.files = documentTransfer.files;
-            }
+        documentsInput?.addEventListener('change', function () {
+            const selected = Array.from(this.files || []);
+            const previousFiles = documentTransfer
+                ? Array.from(documentTransfer.files || [])
+                : [];
 
-            renderDocuments();
+            rebuildDocumentInput(previousFiles);
+            appendDocuments(selected);
         });
 
+        if (documentDropzone && documentsInput) {
+            ['dragenter', 'dragover'].forEach(function (eventName) {
+                documentDropzone.addEventListener(eventName, function (event) {
+                    event.preventDefault();
+                    documentDropzone.classList.add('is-dragging');
+                });
+            });
+
+            ['dragleave', 'drop'].forEach(function (eventName) {
+                documentDropzone.addEventListener(eventName, function (event) {
+                    event.preventDefault();
+                    documentDropzone.classList.remove('is-dragging');
+                });
+            });
+
+            documentDropzone.addEventListener('drop', function (event) {
+                appendDocuments(Array.from(event.dataTransfer?.files || []));
+            });
+        }
+
         const form = field.closest('form');
+
+        function updateCharacterCounter() {
+            if (!characterCounter) {
+                return;
+            }
+
+            const characterCount = editor.innerText
+                .replace(/\u200B/g, '')
+                .replace(/\u00A0/g, ' ')
+                .trim()
+                .length;
+
+            characterCounter.textContent = characterCount
+                + (characterCount === 1 ? ' carácter' : ' caracteres');
+            characterCounter.classList.toggle('is-warning', characterCount > 8000);
+        }
+
+        updateCharacterCounter();
+        renderDocuments();
 
         form?.addEventListener('submit', function (event) {
             hiddenInput.value = editor.innerHTML.trim();
@@ -2793,6 +3269,21 @@ document.addEventListener('keydown', function (e) {
             }
 
             field.classList.remove('has-error');
+
+            const submitButton = form.querySelector('button[type="submit"]');
+
+            if (submitButton && !submitButton.dataset.originalContent) {
+                submitButton.dataset.originalContent = submitButton.innerHTML;
+            }
+
+            if (submitButton && !submitButton.disabled) {
+                const loadingLabel = submitButton.dataset.loadingLabel || 'Enviando...';
+                submitButton.disabled = true;
+                submitButton.classList.add('is-loading');
+                submitButton.innerHTML = '<i class="fa-solid fa-spinner fa-spin" aria-hidden="true"></i><span>'
+                    + loadingLabel
+                    + '</span>';
+            }
         });
 
         const syncEditorValue = () => {
@@ -2801,6 +3292,7 @@ document.addEventListener('keydown', function (e) {
 
         editor.addEventListener('input', function () {
             syncEditorValue();
+            updateCharacterCounter();
             field.classList.remove('has-error');
         });
 
@@ -2839,6 +3331,49 @@ document.addEventListener('keydown', function (e) {
         initializeAllRichEditors();
     }
 })();
+
+
+    function initializeTicketMessageUX() {
+        const list = document.querySelector('[data-ticket-message-scroll]');
+
+        if (list) {
+            list.scrollTop = list.scrollHeight;
+        }
+
+        document.querySelectorAll('[data-collapsible-message]').forEach(function (messageBody) {
+            const toggle = messageBody.parentElement?.querySelector('[data-message-toggle]');
+
+            if (!toggle) {
+                return;
+            }
+
+            messageBody.classList.add('is-collapsed');
+
+            window.requestAnimationFrame(function () {
+                const hasOverflow = messageBody.scrollHeight > messageBody.clientHeight + 8;
+
+                if (!hasOverflow) {
+                    messageBody.classList.remove('is-collapsed');
+                    toggle.hidden = true;
+                    return;
+                }
+
+                toggle.hidden = false;
+                toggle.textContent = 'Ver más';
+            });
+
+            toggle.addEventListener('click', function () {
+                const isCollapsed = messageBody.classList.toggle('is-collapsed');
+                toggle.textContent = isCollapsed ? 'Ver más' : 'Ver menos';
+            });
+        });
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initializeTicketMessageUX, { once: true });
+    } else {
+        initializeTicketMessageUX();
+    }
 
 </script>
 

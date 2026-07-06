@@ -2,6 +2,14 @@
 require_once __DIR__ . '/app/config/database.php';
 require_once __DIR__ . '/app/helpers/company_portal.php';
 require_once __DIR__ . '/app/controllers/CompanyPortalAuthController.php';
+require_once __DIR__ . '/app/helpers/remember_me.php';
+
+$reason = trim((string) ($_GET['reason'] ?? ''));
+$skipPersistentRestore = ['idle_timeout', 'absolute_timeout', 'revoked', 'inactive_account', 'session_mismatch'];
+
+if (!companyPortalIsLoggedIn() && !in_array($reason, $skipPersistentRestore, true)) {
+    companyRememberAttempt($pdo);
+}
 
 if (companyPortalIsLoggedIn()) {
     $sessionCheck = companyPortalEnforceSession($pdo);
@@ -28,7 +36,6 @@ $reasonMessages = [
     'session_mismatch' => 'La sesión no pudo validarse. Ingresa nuevamente.',
 ];
 
-$reason = trim((string) ($_GET['reason'] ?? ''));
 if (isset($reasonMessages[$reason])) {
     $noticeMessage = $reasonMessages[$reason];
 }
@@ -39,7 +46,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } else {
         $result = $authController->login(
             trim((string) ($_POST['email'] ?? '')),
-            (string) ($_POST['password'] ?? '')
+            (string) ($_POST['password'] ?? ''),
+            isset($_POST['remember_me']) && (string) $_POST['remember_me'] === '1'
         );
 
         if (!empty($result['success'])) {

@@ -3,6 +3,7 @@
 require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../helpers/session.php';
 require_once __DIR__ . '/../helpers/system_security.php';
+require_once __DIR__ . '/../helpers/remember_me.php';
 
 class AuthController
 {
@@ -13,7 +14,7 @@ class AuthController
         $this->pdo = $pdo;
     }
 
-    public function login(string $email, string $password): array
+    public function login(string $email, string $password, bool $rememberMe = false): array
     {
         $email = strtolower(trim($email));
         $settings = getSystemSecuritySettings($this->pdo);
@@ -123,11 +124,14 @@ class AuthController
 
         $this->resetFailedLogin($userId);
 
+        $credentialHash = (string) $user['password'];
+
         if (password_needs_rehash((string) $user['password'], PASSWORD_DEFAULT)) {
             try {
                 $rehash = password_hash($password, PASSWORD_DEFAULT);
                 $rehashStatement = $this->pdo->prepare('UPDATE users SET password = :password WHERE id = :id');
                 $rehashStatement->execute(['password' => $rehash, 'id' => $userId]);
+                $credentialHash = $rehash;
             } catch (Throwable $exception) {
                 // El inicio de sesión continúa con el hash válido actual.
             }
@@ -172,6 +176,12 @@ class AuthController
         $_SESSION['security_last_activity_at'] = time();
         $_SESSION['security_db_touch_at'] = time();
 
+        if ($rememberMe) {
+            authRememberIssueForUser($this->pdo, $userId, $credentialHash);
+        } else {
+            authRememberForgetCurrent($this->pdo, 'El usuario inició sesión sin recordar el dispositivo');
+        }
+
         systemSecurityAudit(
             $this->pdo,
             'LOGIN_SUCCESS',
@@ -179,7 +189,10 @@ class AuthController
             $userId,
             $userId,
             'info',
-            ['role' => (string) ($user['role'] ?? '')]
+            [
+                'role' => (string) ($user['role'] ?? ''),
+                'remember_me' => $rememberMe,
+            ]
         );
 
         return [
@@ -192,6 +205,8 @@ class AuthController
     public function logout(string $reason = 'Cierre de sesión voluntario'): void
     {
         $currentUserId = (int) ($_SESSION['user']['id'] ?? 0);
+
+        authRememberForgetCurrent($this->pdo, $reason);
 
         if ($currentUserId > 0) {
             systemSecurityRevokeCurrentSession($this->pdo, $reason);

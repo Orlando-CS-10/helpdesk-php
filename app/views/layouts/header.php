@@ -97,6 +97,17 @@ $projectRoot = dirname(__DIR__, 3);
 $cssEntryPath = $projectRoot . '/public/assets/css/' . $cssEntryFile;
 $cssVersion = file_exists($cssEntryPath) ? filemtime($cssEntryPath) : time();
 
+$ticketCssScripts = [
+    'ticket-detail.php',
+    'my-tickets.php',
+    'admin-tickets.php',
+    'create-ticket.php',
+    'edit-message.php',
+];
+$shouldLoadTicketCss = in_array($currentScript, $ticketCssScripts, true);
+$ticketCssPath = $projectRoot . '/public/assets/css/tickets.css';
+$ticketCssVersion = file_exists($ticketCssPath) ? filemtime($ticketCssPath) : time();
+
 /*
  * Personalización global del panel.
  * Si la tabla todavía no existe, el helper devuelve la paleta original.
@@ -139,23 +150,33 @@ $sidebarStorageKey = $useCompanyPortalLayout
 ?>
 <!doctype html>
 <html lang="es" data-system-theme-setting="<?= htmlspecialchars($systemThemeSetting, ENT_QUOTES, 'UTF-8') ?>" data-system-theme="light">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><?= htmlspecialchars($title ?? 'Mesa de Ayuda', ENT_QUOTES, 'UTF-8') ?></title>
 
+    <link rel="icon" type="image/png" href="/helpdesk-php/public/favicon/favicon-96x96.png" sizes="96x96">
+    <link rel="icon" type="image/svg+xml" href="/helpdesk-php/public/favicon/favicon.svg">
+    <link rel="shortcut icon" href="/helpdesk-php/public/favicon/favicon.ico">
+    <link rel="apple-touch-icon" sizes="180x180" href="/helpdesk-php/public/favicon/apple-touch-icon.png">
+    <link rel="manifest" href="/helpdesk-php/public/favicon/site.webmanifest">
+    <meta name="apple-mobile-web-app-title" content="HelpDesk">
+    <meta name="application-name" content="HelpDesk">
+    <meta name="theme-color" content="#0f3d2e">
+
     <script>
-        (function () {
+        (function() {
             const root = document.documentElement;
             const setting = root.dataset.systemThemeSetting || 'light';
-            const media = window.matchMedia
-                ? window.matchMedia('(prefers-color-scheme: dark)')
-                : null;
+            const media = window.matchMedia ?
+                window.matchMedia('(prefers-color-scheme: dark)') :
+                null;
 
             function applyResolvedTheme() {
-                const resolved = setting === 'auto'
-                    ? (media && media.matches ? 'dark' : 'light')
-                    : (setting === 'dark' ? 'dark' : 'light');
+                const resolved = setting === 'auto' ?
+                    (media && media.matches ? 'dark' : 'light') :
+                    (setting === 'dark' ? 'dark' : 'light');
 
                 root.dataset.systemTheme = resolved;
                 root.style.colorScheme = resolved;
@@ -188,66 +209,72 @@ $sidebarStorageKey = $useCompanyPortalLayout
     </script>
 
     <link rel="stylesheet"
-          href="<?= htmlspecialchars($cssBaseUrl . $cssEntryFile, ENT_QUOTES, 'UTF-8') ?>?v=<?= (int) $cssVersion ?>">
+        href="<?= htmlspecialchars($cssBaseUrl . $cssEntryFile, ENT_QUOTES, 'UTF-8') ?>?v=<?= (int) $cssVersion ?>">
+
+    <?php if (!empty($shouldLoadTicketCss)): ?>
+        <link rel="stylesheet"
+            href="<?= htmlspecialchars($cssBaseUrl . 'tickets.css', ENT_QUOTES, 'UTF-8') ?>?v=<?= (int) $ticketCssVersion ?>">
+    <?php endif; ?>
 
     <?php if ($systemCustomizationCss !== ''): ?>
         <style id="systemCustomizationVariables">
-<?= $systemCustomizationCss ?>
+            <?= $systemCustomizationCss ?>
         </style>
     <?php endif; ?>
 
     <script src="https://kit.fontawesome.com/b44fd2b2de.js" crossorigin="anonymous"></script>
 </head>
+
 <body>
-<?php
-$toastMessage = '';
-$toastType = '';
+    <?php
+    $toastMessage = '';
+    $toastType = '';
 
-if (!empty($_SESSION['ticket_success'])) {
-    $toastMessage = (string) $_SESSION['ticket_success'];
-    $toastType = 'success';
-    unset($_SESSION['ticket_success']);
-} elseif (!empty($_SESSION['ticket_error'])) {
-    $toastMessage = (string) $_SESSION['ticket_error'];
-    $toastType = 'error';
-    unset($_SESSION['ticket_error']);
-} elseif (!empty($_SESSION['settings_success'])) {
-    $toastMessage = (string) $_SESSION['settings_success'];
-    $toastType = 'success';
-    unset($_SESSION['settings_success']);
-} elseif (!empty($_SESSION['settings_error'])) {
-    $toastMessage = (string) $_SESSION['settings_error'];
-    $toastType = 'error';
-    unset($_SESSION['settings_error']);
-}
-?>
+    if (!empty($_SESSION['ticket_success'])) {
+        $toastMessage = (string) $_SESSION['ticket_success'];
+        $toastType = 'success';
+        unset($_SESSION['ticket_success']);
+    } elseif (!empty($_SESSION['ticket_error'])) {
+        $toastMessage = (string) $_SESSION['ticket_error'];
+        $toastType = 'error';
+        unset($_SESSION['ticket_error']);
+    } elseif (!empty($_SESSION['settings_success'])) {
+        $toastMessage = (string) $_SESSION['settings_success'];
+        $toastType = 'success';
+        unset($_SESSION['settings_success']);
+    } elseif (!empty($_SESSION['settings_error'])) {
+        $toastMessage = (string) $_SESSION['settings_error'];
+        $toastType = 'error';
+        unset($_SESSION['settings_error']);
+    }
+    ?>
 
-<?php if ($toastMessage !== ''): ?>
-    <div class="toast-container">
-        <div class="toast toast-<?= htmlspecialchars($toastType, ENT_QUOTES, 'UTF-8') ?>" id="appToast">
-            <div class="toast-content">
-                <strong class="toast-title">
-                    <?= $toastType === 'success' ? 'Correcto' : 'Atención' ?>
-                </strong>
-                <p class="toast-message"><?= htmlspecialchars($toastMessage, ENT_QUOTES, 'UTF-8') ?></p>
+    <?php if ($toastMessage !== ''): ?>
+        <div class="toast-container">
+            <div class="toast toast-<?= htmlspecialchars($toastType, ENT_QUOTES, 'UTF-8') ?>" id="appToast">
+                <div class="toast-content">
+                    <strong class="toast-title">
+                        <?= $toastType === 'success' ? 'Correcto' : 'Atención' ?>
+                    </strong>
+                    <p class="toast-message"><?= htmlspecialchars($toastMessage, ENT_QUOTES, 'UTF-8') ?></p>
+                </div>
+
+                <button type="button" class="toast-close" onclick="closeToast()" aria-label="Cerrar notificación">×</button>
             </div>
-
-            <button type="button" class="toast-close" onclick="closeToast()" aria-label="Cerrar notificación">×</button>
         </div>
-    </div>
 
-    <script>
-        function closeToast() {
-            const toast = document.getElementById('appToast');
+        <script>
+            function closeToast() {
+                const toast = document.getElementById('appToast');
 
-            if (!toast) {
-                return;
+                if (!toast) {
+                    return;
+                }
+
+                toast.classList.add('toast-hide');
+                window.setTimeout(() => toast.remove(), 300);
             }
 
-            toast.classList.add('toast-hide');
-            window.setTimeout(() => toast.remove(), 300);
-        }
-
-        window.setTimeout(closeToast, 4000);
-    </script>
-<?php endif; ?>
+            window.setTimeout(closeToast, 4000);
+        </script>
+    <?php endif; ?>
