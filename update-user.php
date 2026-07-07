@@ -53,6 +53,126 @@ function updateUserCompanyDisplayName(array $company): string
         : trim((string)($company['business_name'] ?? ''));
 }
 
+function updateUserPhoneCountryRules(): array
+{
+    return [
+        'PE' => ['label' => 'Perú', 'digits' => 9],
+        'CO' => ['label' => 'Colombia', 'digits' => 10],
+        'MX' => ['label' => 'México', 'digits' => 10],
+        'CL' => ['label' => 'Chile', 'digits' => 9],
+        'EC' => ['label' => 'Ecuador', 'digits' => 10],
+        'BO' => ['label' => 'Bolivia', 'digits' => 8],
+        'AR' => ['label' => 'Argentina', 'digits' => 10],
+        'US' => ['label' => 'Estados Unidos', 'digits' => 10],
+    ];
+}
+
+function updateUserNormalizePhone(string $phone): string
+{
+    return preg_replace('/\D+/', '', $phone) ?? '';
+}
+
+function updateUserValidatePhoneByCountry(string $phone, string $countryCode): ?string
+{
+    $phone = trim($phone);
+
+    if ($phone === '') {
+        return null;
+    }
+
+    $rules = updateUserPhoneCountryRules();
+    $countryCode = array_key_exists($countryCode, $rules) ? $countryCode : 'PE';
+    $rule = $rules[$countryCode];
+    $digits = (int)$rule['digits'];
+
+    if (!preg_match('/^[0-9]+$/', $phone)) {
+        return 'El teléfono solo debe contener números. No se permiten letras, espacios ni símbolos.';
+    }
+
+    if (strlen($phone) !== $digits) {
+        return 'El teléfono de ' . $rule['label'] . ' debe contener exactamente ' . $digits . ' números.';
+    }
+
+    return null;
+}
+
+
+function updateUserNormalizePlainText(string $value): string
+{
+    $value = strip_tags($value);
+    $collapsed = preg_replace('/\s+/u', ' ', $value);
+    return trim($collapsed ?? $value);
+}
+
+function updateUserTextLength(string $value): int
+{
+    return function_exists('mb_strlen') ? mb_strlen($value, 'UTF-8') : strlen($value);
+}
+
+function updateUserValidateFullName(string $name): ?string
+{
+    $length = updateUserTextLength($name);
+
+    if ($length < 3 || $length > 80) {
+        return 'El nombre completo debe tener entre 3 y 80 caracteres.';
+    }
+
+    if (!preg_match("/^[\\p{L}]+(?:[\\s'.-]+[\\p{L}]+)*$/u", $name)) {
+        return 'El nombre completo solo debe contener letras, espacios, tildes, ñ, apóstrofes o guiones.';
+    }
+
+    return null;
+}
+
+function updateUserValidateEmailAddress(string $email): ?string
+{
+    if (updateUserTextLength($email) > 120) {
+        return 'El correo no debe superar los 120 caracteres.';
+    }
+
+    if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        return 'El correo no es válido.';
+    }
+
+    return null;
+}
+
+function updateUserValidatePositionField(string $position): ?string
+{
+    if ($position === '') {
+        return null;
+    }
+
+    $length = updateUserTextLength($position);
+    if ($length < 2 || $length > 80) {
+        return 'El cargo debe tener entre 2 y 80 caracteres.';
+    }
+
+    if (!preg_match("/^[\\p{L}\\p{N}\\s().,\\/#&+_-]+$/u", $position)) {
+        return 'El cargo contiene caracteres no permitidos.';
+    }
+
+    return null;
+}
+
+function updateUserValidateBusinessNameField(string $value, string $label, bool $required = false): ?string
+{
+    if ($value === '') {
+        return $required ? 'Ingresa ' . strtolower($label) . '.' : null;
+    }
+
+    $length = updateUserTextLength($value);
+    if ($length < 2 || $length > 150) {
+        return $label . ' debe tener entre 2 y 150 caracteres.';
+    }
+
+    if (!preg_match("/^[\\p{L}\\p{N}\\s.,&'()\\/#_+-]+$/u", $value)) {
+        return $label . ' contiene caracteres no permitidos.';
+    }
+
+    return null;
+}
+
 function updateUserDeleteLocalPhoto(?string $photo): void
 {
     $photo = trim((string)$photo);
@@ -202,12 +322,14 @@ function updateUserHandleProfilePhoto(int $userId): ?string
 }
 
 $id = isset($_POST['id']) ? (int) $_POST['id'] : 0;
-$name = trim($_POST['name'] ?? '');
-$email = trim($_POST['email'] ?? '');
-$role = trim($_POST['role'] ?? '');
-$phone = trim($_POST['phone'] ?? '');
-$position = trim($_POST['position'] ?? '');
-$company = trim($_POST['company'] ?? '');
+$name = updateUserNormalizePlainText((string)($_POST['name'] ?? ''));
+$email = strtolower(updateUserNormalizePlainText((string)($_POST['email'] ?? '')));
+$role = trim((string)($_POST['role'] ?? ''));
+$phoneCountry = trim((string)($_POST['phone_country'] ?? 'PE'));
+$rawPhone = trim((string)($_POST['phone'] ?? ''));
+$phone = updateUserNormalizePhone($rawPhone);
+$position = updateUserNormalizePlainText((string)($_POST['position'] ?? ''));
+$company = updateUserNormalizePlainText((string)($_POST['company'] ?? ''));
 $techLevel = isset($_POST['tech_level']) ? (int) $_POST['tech_level'] : 1;
 
 if ($techLevel < 1 || $techLevel > 3) {
@@ -225,8 +347,33 @@ if ($id <= 0 || $name === '' || $email === '' || !in_array($role, $allowedRoles,
     redirectUserEdit($id);
 }
 
-if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
-    $_SESSION['user_error'] = 'El correo no es válido.';
+$nameError = updateUserValidateFullName($name);
+if ($nameError !== null) {
+    $_SESSION['user_error'] = $nameError;
+    redirectUserEdit($id);
+}
+
+$emailError = updateUserValidateEmailAddress($email);
+if ($emailError !== null) {
+    $_SESSION['user_error'] = $emailError;
+    redirectUserEdit($id);
+}
+
+$positionError = updateUserValidatePositionField($position);
+if ($positionError !== null) {
+    $_SESSION['user_error'] = $positionError;
+    redirectUserEdit($id);
+}
+
+$legacyCompanyError = updateUserValidateBusinessNameField($company, 'La empresa');
+if ($legacyCompanyError !== null) {
+    $_SESSION['user_error'] = $legacyCompanyError;
+    redirectUserEdit($id);
+}
+
+$phoneError = updateUserValidatePhoneByCountry($rawPhone, $phoneCountry);
+if ($phoneError !== null) {
+    $_SESSION['user_error'] = $phoneError;
     redirectUserEdit($id);
 }
 

@@ -231,7 +231,8 @@ if ($canCreateUsers) {
         $companySelectorHtml = '
                 <div class="create-user-field create-user-client-only create-user-full">
                     <label for="create_user_company">Empresa</label>
-                    <input type="text" id="create_user_company" name="company" placeholder="Opcional">
+                    <input type="text" id="create_user_company" name="company" maxlength="150" autocomplete="organization" placeholder="Opcional" data-business-input>
+                    <small class="create-user-help">Letras, números y signos comerciales básicos. No uses caracteres raros.</small>
                 </div>';
     }
 
@@ -262,12 +263,12 @@ if ($canCreateUsers) {
             <div class="create-user-grid">
                 <div class="create-user-field">
                     <label for="create_user_name">Nombre completo</label>
-                    <input type="text" id="create_user_name" name="name" required placeholder="Ej. Juan Pérez">
+                    <input type="text" id="create_user_name" name="name" required maxlength="80" autocomplete="name" placeholder="Ej. Juan Pérez" data-name-input>
                 </div>
 
                 <div class="create-user-field">
                     <label for="create_user_email">Correo</label>
-                    <input type="email" id="create_user_email" name="email" required placeholder="usuario@empresa.com">
+                    <input type="email" id="create_user_email" name="email" required maxlength="120" autocomplete="email" placeholder="usuario@empresa.com">
                 </div>
 
                 <div class="create-user-field">
@@ -287,25 +288,39 @@ if ($canCreateUsers) {
                 </div>
 
                 <div class="create-user-field">
+                    <label for="create_user_phone_country">País del teléfono</label>
+                    <select id="create_user_phone_country" name="phone_country" data-phone-country-for="create_user_phone">
+                        <option value="PE" data-digits="9" selected>Perú (+51) · 9 dígitos</option>
+                        <option value="CO" data-digits="10">Colombia (+57) · 10 dígitos</option>
+                        <option value="MX" data-digits="10">México (+52) · 10 dígitos</option>
+                        <option value="CL" data-digits="9">Chile (+56) · 9 dígitos</option>
+                        <option value="EC" data-digits="10">Ecuador (+593) · 10 dígitos</option>
+                        <option value="BO" data-digits="8">Bolivia (+591) · 8 dígitos</option>
+                        <option value="AR" data-digits="10">Argentina (+54) · 10 dígitos</option>
+                        <option value="US" data-digits="10">Estados Unidos (+1) · 10 dígitos</option>
+                    </select>
+                </div>
+
+                <div class="create-user-field">
                     <label for="create_user_phone">Teléfono</label>
-                    <input type="text" id="create_user_phone" name="phone" placeholder="Opcional">
+                    <input type="text" id="create_user_phone" name="phone" inputmode="numeric" pattern="[0-9]*" maxlength="9" autocomplete="tel-national" placeholder="Ej. 954874584" data-phone-input data-phone-help="create_user_phone_help">
                 </div>
 
                 <div class="create-user-field">
                     <label for="create_user_position">Cargo</label>
-                    <input type="text" id="create_user_position" name="position" placeholder="Opcional">
+                    <input type="text" id="create_user_position" name="position" maxlength="80" autocomplete="organization-title" placeholder="Ej. Jefe de TI" data-position-input>
                 </div>
 
                 ' . $companySelectorHtml . '
 
                 <div class="create-user-field">
                     <label for="create_user_password">Contraseña</label>
-                    <input type="password" id="create_user_password" name="password" required minlength="' . $createUserPasswordMinimum . '" placeholder="Mínimo ' . $createUserPasswordMinimum . ' caracteres">
+                    <input type="password" id="create_user_password" name="password" required minlength="' . $createUserPasswordMinimum . '" maxlength="128" autocomplete="new-password" placeholder="Mínimo ' . $createUserPasswordMinimum . ' caracteres">
                 </div>
 
                 <div class="create-user-field">
                     <label for="create_user_password_confirmation">Confirmar contraseña</label>
-                    <input type="password" id="create_user_password_confirmation" name="password_confirmation" required minlength="' . $createUserPasswordMinimum . '" placeholder="Repite la contraseña">
+                    <input type="password" id="create_user_password_confirmation" name="password_confirmation" required minlength="' . $createUserPasswordMinimum . '" maxlength="128" autocomplete="new-password" placeholder="Repite la contraseña">
                 </div>
 
                 <div class="create-user-field create-user-full">
@@ -333,6 +348,68 @@ document.addEventListener("DOMContentLoaded", function () {
     const roleSelect = document.getElementById("create_user_role");
     const techLevelWrap = document.getElementById("createUserTechLevelWrap");
     const clientOnlyBlocks = document.querySelectorAll(".create-user-client-only");
+    const phoneInput = document.getElementById("create_user_phone");
+    const phoneCountry = document.getElementById("create_user_phone_country");
+    const phoneHelp = document.getElementById("create_user_phone_help");
+    const nameInputs = document.querySelectorAll("[data-name-input]");
+    const positionInputs = document.querySelectorAll("[data-position-input]");
+    const businessInputs = document.querySelectorAll("[data-business-input]");
+
+    function cleanNameValue(value) {
+        return value
+            .replace(/[^\p{L}\s\'.-]/gu, "")
+            .replace(/\s{2,}/g, " ")
+            .slice(0, 80);
+    }
+
+    function cleanPositionValue(value) {
+        return value
+            .replace(/[^\p{L}\p{N}\s().,\/#&+_-]/gu, "")
+            .replace(/\s{2,}/g, " ")
+            .slice(0, 80);
+    }
+
+    function cleanBusinessValue(value) {
+        return value
+            .replace(/[^\p{L}\p{N}\s.,&\'()\/#_+-]/gu, "")
+            .replace(/\s{2,}/g, " ")
+            .slice(0, 150);
+    }
+
+    function attachCleaner(inputs, cleaner) {
+        inputs.forEach(function (input) {
+            input.addEventListener("input", function () {
+                const cursor = input.selectionStart;
+                const originalLength = input.value.length;
+                input.value = cleaner(input.value);
+                const diff = originalLength - input.value.length;
+                if (cursor !== null) input.setSelectionRange(Math.max(cursor - diff, 0), Math.max(cursor - diff, 0));
+            });
+        });
+    }
+
+    function syncPhoneRules() {
+        if (!phoneInput || !phoneCountry) return;
+
+        const selectedOption = phoneCountry.options[phoneCountry.selectedIndex];
+        const digits = selectedOption ? parseInt(selectedOption.dataset.digits || "9", 10) : 9;
+        const countryLabel = selectedOption ? selectedOption.textContent.split("·")[0].trim() : "Perú (+51)";
+
+        phoneInput.maxLength = digits;
+        phoneInput.pattern = "[0-9]{" + digits + "}";
+        phoneInput.title = "Ingresa exactamente " + digits + " números para " + countryLabel + ".";
+        phoneInput.value = phoneInput.value.replace(/\D/g, "").slice(0, digits);
+
+        if (phoneHelp) {
+            phoneHelp.textContent = "Solo números. " + countryLabel + " requiere exactamente " + digits + " dígitos.";
+        }
+    }
+
+    function cleanPhoneInput() {
+        if (!phoneInput) return;
+        const maxLength = parseInt(phoneInput.maxLength || "9", 10);
+        phoneInput.value = phoneInput.value.replace(/\D/g, "").slice(0, maxLength);
+    }
 
     function openModal() {
         if (!modal) return;
@@ -363,10 +440,16 @@ document.addEventListener("DOMContentLoaded", function () {
         });
     }
 
+    attachCleaner(nameInputs, cleanNameValue);
+    attachCleaner(positionInputs, cleanPositionValue);
+    attachCleaner(businessInputs, cleanBusinessValue);
+
     if (openBtn) openBtn.addEventListener("click", openModal);
     if (closeBtn) closeBtn.addEventListener("click", closeModal);
     if (cancelBtn) cancelBtn.addEventListener("click", closeModal);
     if (roleSelect) roleSelect.addEventListener("change", syncRoleFields);
+    if (phoneInput) phoneInput.addEventListener("input", cleanPhoneInput);
+    if (phoneCountry) phoneCountry.addEventListener("change", syncPhoneRules);
 
     if (modal) {
         modal.addEventListener("click", function (event) {
@@ -379,6 +462,7 @@ document.addEventListener("DOMContentLoaded", function () {
     });
 
     syncRoleFields();
+    syncPhoneRules();
 });
 </script>
 ';

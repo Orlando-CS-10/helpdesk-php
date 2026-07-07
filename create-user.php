@@ -70,12 +70,171 @@ function companyDisplayName(array $company): string
         : trim((string)($company['business_name'] ?? ''));
 }
 
-$name = trim($_POST['name'] ?? '');
-$email = trim($_POST['email'] ?? '');
-$role = trim($_POST['role'] ?? '');
-$phone = trim($_POST['phone'] ?? '');
-$position = trim($_POST['position'] ?? '');
-$company = trim($_POST['company'] ?? '');
+function userPhoneCountryRules(): array
+{
+    return [
+        'PE' => ['label' => 'Perú', 'digits' => 9],
+        'CO' => ['label' => 'Colombia', 'digits' => 10],
+        'MX' => ['label' => 'México', 'digits' => 10],
+        'CL' => ['label' => 'Chile', 'digits' => 9],
+        'EC' => ['label' => 'Ecuador', 'digits' => 10],
+        'BO' => ['label' => 'Bolivia', 'digits' => 8],
+        'AR' => ['label' => 'Argentina', 'digits' => 10],
+        'US' => ['label' => 'Estados Unidos', 'digits' => 10],
+    ];
+}
+
+function normalizeUserPhone(string $phone): string
+{
+    return preg_replace('/\D+/', '', $phone) ?? '';
+}
+
+function validateUserPhoneByCountry(string $phone, string $countryCode): ?string
+{
+    $phone = trim($phone);
+
+    if ($phone === '') {
+        return null;
+    }
+
+    $rules = userPhoneCountryRules();
+    $countryCode = array_key_exists($countryCode, $rules) ? $countryCode : 'PE';
+    $rule = $rules[$countryCode];
+    $digits = (int)$rule['digits'];
+
+    if (!preg_match('/^[0-9]+$/', $phone)) {
+        return 'El teléfono solo debe contener números. No se permiten letras, espacios ni símbolos.';
+    }
+
+    if (strlen($phone) !== $digits) {
+        return 'El teléfono de ' . $rule['label'] . ' debe contener exactamente ' . $digits . ' números.';
+    }
+
+    return null;
+}
+
+
+function normalizeUserPlainText(string $value): string
+{
+    $value = strip_tags($value);
+    $collapsed = preg_replace('/\s+/u', ' ', $value);
+    return trim($collapsed ?? $value);
+}
+
+function userTextLength(string $value): int
+{
+    return function_exists('mb_strlen') ? mb_strlen($value, 'UTF-8') : strlen($value);
+}
+
+function validateUserFullName(string $name): ?string
+{
+    $length = userTextLength($name);
+
+    if ($length < 3 || $length > 80) {
+        return 'El nombre completo debe tener entre 3 y 80 caracteres.';
+    }
+
+    if (!preg_match("/^[\\p{L}]+(?:[\\s'.-]+[\\p{L}]+)*$/u", $name)) {
+        return 'El nombre completo solo debe contener letras, espacios, tildes, ñ, apóstrofes o guiones.';
+    }
+
+    return null;
+}
+
+function validateUserEmailAddress(string $email): ?string
+{
+    if (userTextLength($email) > 120) {
+        return 'El correo no debe superar los 120 caracteres.';
+    }
+
+    if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        return 'El correo no es válido.';
+    }
+
+    return null;
+}
+
+function validateUserPositionField(string $position): ?string
+{
+    if ($position === '') {
+        return null;
+    }
+
+    $length = userTextLength($position);
+    if ($length < 2 || $length > 80) {
+        return 'El cargo debe tener entre 2 y 80 caracteres.';
+    }
+
+    if (!preg_match("/^[\\p{L}\\p{N}\\s().,\\/#&+_-]+$/u", $position)) {
+        return 'El cargo contiene caracteres no permitidos.';
+    }
+
+    return null;
+}
+
+function validateUserBusinessNameField(string $value, string $label, bool $required = false): ?string
+{
+    if ($value === '') {
+        return $required ? 'Ingresa ' . strtolower($label) . '.' : null;
+    }
+
+    $length = userTextLength($value);
+    if ($length < 2 || $length > 150) {
+        return $label . ' debe tener entre 2 y 150 caracteres.';
+    }
+
+    if (!preg_match("/^[\\p{L}\\p{N}\\s.,&'()\\/#_+-]+$/u", $value)) {
+        return $label . ' contiene caracteres no permitidos.';
+    }
+
+    return null;
+}
+
+function validateUserAddressField(string $address): ?string
+{
+    if ($address === '') {
+        return null;
+    }
+
+    $length = userTextLength($address);
+    if ($length < 5 || $length > 180) {
+        return 'La dirección fiscal debe tener entre 5 y 180 caracteres.';
+    }
+
+    if (!preg_match("/^[\\p{L}\\p{N}\\s.,;:º°ª'()\\/#_+-]+$/u", $address)) {
+        return 'La dirección fiscal contiene caracteres no permitidos.';
+    }
+
+    return null;
+}
+
+function validateStrictDigitsField(string $rawValue, string $label, int $digits, bool $required = true): ?string
+{
+    $rawValue = trim($rawValue);
+
+    if ($rawValue === '') {
+        return $required ? $label . ' es obligatorio.' : null;
+    }
+
+    if (!preg_match('/^[0-9]+$/', $rawValue)) {
+        return $label . ' solo debe contener números.';
+    }
+
+    if (strlen($rawValue) !== $digits) {
+        return $label . ' debe tener exactamente ' . $digits . ' dígitos.';
+    }
+
+    return null;
+}
+
+$name = normalizeUserPlainText((string)($_POST['name'] ?? ''));
+$email = strtolower(normalizeUserPlainText((string)($_POST['email'] ?? '')));
+$role = trim((string)($_POST['role'] ?? ''));
+$phoneCountry = trim((string)($_POST['phone_country'] ?? 'PE'));
+$rawPhone = trim((string)($_POST['phone'] ?? ''));
+$phone = normalizeUserPhone($rawPhone);
+$position = normalizeUserPlainText((string)($_POST['position'] ?? ''));
+$company = normalizeUserPlainText((string)($_POST['company'] ?? ''));
 $password = (string) ($_POST['password'] ?? '');
 $passwordConfirmation = (string) ($_POST['password_confirmation'] ?? '');
 $techLevel = isset($_POST['tech_level']) ? (int) $_POST['tech_level'] : 1;
@@ -95,8 +254,33 @@ if ($name === '' || $email === '' || !in_array($role, $allowedRoles, true)) {
     redirectUsers();
 }
 
-if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
-    $_SESSION['user_error'] = 'El correo no es válido.';
+$nameError = validateUserFullName($name);
+if ($nameError !== null) {
+    $_SESSION['user_error'] = $nameError;
+    redirectUsers();
+}
+
+$emailError = validateUserEmailAddress($email);
+if ($emailError !== null) {
+    $_SESSION['user_error'] = $emailError;
+    redirectUsers();
+}
+
+$positionError = validateUserPositionField($position);
+if ($positionError !== null) {
+    $_SESSION['user_error'] = $positionError;
+    redirectUsers();
+}
+
+$legacyCompanyError = validateUserBusinessNameField($company, 'La empresa');
+if ($legacyCompanyError !== null) {
+    $_SESSION['user_error'] = $legacyCompanyError;
+    redirectUsers();
+}
+
+$phoneError = validateUserPhoneByCountry($rawPhone, $phoneCountry);
+if ($phoneError !== null) {
+    $_SESSION['user_error'] = $phoneError;
     redirectUsers();
 }
 
@@ -160,28 +344,51 @@ try {
                     throw new RuntimeException('Solo un administrador puede registrar nuevas empresas cliente.');
                 }
 
-                $newCompanyRuc = preg_replace('/\D+/', '', trim($_POST['new_company_ruc'] ?? ''));
-                $newCompanyBusinessName = trim($_POST['new_company_business_name'] ?? '');
-                $newCompanyTradeName = trim($_POST['new_company_trade_name'] ?? '');
-                $newCompanyFiscalAddress = trim($_POST['new_company_fiscal_address'] ?? '');
-                $newCompanyPhone = trim($_POST['new_company_phone'] ?? '');
-                $newCompanyEmail = trim($_POST['new_company_email'] ?? '');
-                $newCompanySlaContractType = trim($_POST['new_company_sla_contract_type'] ?? '8_5');
+                $rawNewCompanyRuc = trim((string)($_POST['new_company_ruc'] ?? ''));
+                $newCompanyRuc = preg_replace('/\D+/', '', $rawNewCompanyRuc) ?? '';
+                $newCompanyBusinessName = normalizeUserPlainText((string)($_POST['new_company_business_name'] ?? ''));
+                $newCompanyTradeName = normalizeUserPlainText((string)($_POST['new_company_trade_name'] ?? ''));
+                $newCompanyFiscalAddress = normalizeUserPlainText((string)($_POST['new_company_fiscal_address'] ?? ''));
+                $newCompanyPhoneCountry = trim((string)($_POST['new_company_phone_country'] ?? 'PE'));
+                $rawNewCompanyPhone = trim((string)($_POST['new_company_phone'] ?? ''));
+                $newCompanyPhone = normalizeUserPhone($rawNewCompanyPhone);
+                $newCompanyEmail = strtolower(normalizeUserPlainText((string)($_POST['new_company_email'] ?? '')));
+                $newCompanySlaContractType = trim((string)($_POST['new_company_sla_contract_type'] ?? '8_5'));
 
-                if ($newCompanyRuc === '' || strlen($newCompanyRuc) !== 11) {
-                    throw new RuntimeException('El RUC de la empresa debe tener 11 dígitos.');
+                $rucError = validateStrictDigitsField($rawNewCompanyRuc, 'El RUC de la empresa', 11, true);
+                if ($rucError !== null) {
+                    throw new RuntimeException($rucError);
                 }
 
-                if ($newCompanyBusinessName === '') {
-                    throw new RuntimeException('Ingresa la razón social de la empresa cliente.');
+                $businessNameError = validateUserBusinessNameField($newCompanyBusinessName, 'La razón social', true);
+                if ($businessNameError !== null) {
+                    throw new RuntimeException($businessNameError);
+                }
+
+                $tradeNameError = validateUserBusinessNameField($newCompanyTradeName, 'El nombre comercial');
+                if ($tradeNameError !== null) {
+                    throw new RuntimeException($tradeNameError);
+                }
+
+                $addressError = validateUserAddressField($newCompanyFiscalAddress);
+                if ($addressError !== null) {
+                    throw new RuntimeException($addressError);
                 }
 
                 if (!in_array($newCompanySlaContractType, ['24_7', '8_5'], true)) {
                     throw new RuntimeException('Selecciona un tipo de contrato SLA válido.');
                 }
 
-                if ($newCompanyEmail !== '' && !filter_var($newCompanyEmail, FILTER_VALIDATE_EMAIL)) {
-                    throw new RuntimeException('El correo corporativo de la empresa no es válido.');
+                if ($newCompanyEmail !== '') {
+                    $companyEmailError = validateUserEmailAddress($newCompanyEmail);
+                    if ($companyEmailError !== null) {
+                        throw new RuntimeException('Correo corporativo: ' . $companyEmailError);
+                    }
+                }
+
+                $newCompanyPhoneError = validateUserPhoneByCountry($rawNewCompanyPhone, $newCompanyPhoneCountry);
+                if ($newCompanyPhoneError !== null) {
+                    throw new RuntimeException('Teléfono de empresa: ' . $newCompanyPhoneError);
                 }
 
                 $existingCompany = fetchCompanyByRuc($pdo, $newCompanyRuc);

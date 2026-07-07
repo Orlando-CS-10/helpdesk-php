@@ -64,6 +64,20 @@ if ($selectedTechLevel < 1 || $selectedTechLevel > 3) {
     $selectedTechLevel = 1;
 }
 
+function editUserDetectPhoneCountry(?string $phone): string
+{
+    $digits = preg_replace('/\D+/', '', (string)$phone) ?? '';
+
+    return match (strlen($digits)) {
+        8 => 'BO',
+        9 => 'PE',
+        10 => 'CO',
+        default => 'PE',
+    };
+}
+
+$selectedPhoneCountry = editUserDetectPhoneCountry($userItem['phone'] ?? '');
+
 
 function editUserPhotoUrl(?string $photo): ?string
 {
@@ -194,7 +208,10 @@ require_once __DIR__ . '/../layouts/header.php';
                                 id="edit_user_name"
                                 name="name"
                                 value="<?= htmlspecialchars($userItem['name'] ?? '') ?>"
-                                required>
+                                required
+                                maxlength="80"
+                                autocomplete="name"
+                                data-name-input>
                         </div>
 
                         <div class="create-user-field">
@@ -204,7 +221,9 @@ require_once __DIR__ . '/../layouts/header.php';
                                 id="edit_user_email"
                                 name="email"
                                 value="<?= htmlspecialchars($userItem['email'] ?? '') ?>"
-                                required>
+                                required
+                                maxlength="120"
+                                autocomplete="email">
                         </div>
 
                         <div class="create-user-field">
@@ -233,13 +252,33 @@ require_once __DIR__ . '/../layouts/header.php';
                         <?php endif; ?>
 
                         <div class="create-user-field">
+                            <label for="edit_user_phone_country">País del teléfono</label>
+                            <select id="edit_user_phone_country" name="phone_country" data-phone-country-for="edit_user_phone">
+                                <option value="PE" data-digits="9" <?= $selectedPhoneCountry === 'PE' ? 'selected' : '' ?>>Perú (+51) · 9 dígitos</option>
+                                <option value="CO" data-digits="10" <?= $selectedPhoneCountry === 'CO' ? 'selected' : '' ?>>Colombia (+57) · 10 dígitos</option>
+                                <option value="MX" data-digits="10" <?= $selectedPhoneCountry === 'MX' ? 'selected' : '' ?>>México (+52) · 10 dígitos</option>
+                                <option value="CL" data-digits="9" <?= $selectedPhoneCountry === 'CL' ? 'selected' : '' ?>>Chile (+56) · 9 dígitos</option>
+                                <option value="EC" data-digits="10" <?= $selectedPhoneCountry === 'EC' ? 'selected' : '' ?>>Ecuador (+593) · 10 dígitos</option>
+                                <option value="BO" data-digits="8" <?= $selectedPhoneCountry === 'BO' ? 'selected' : '' ?>>Bolivia (+591) · 8 dígitos</option>
+                                <option value="AR" data-digits="10" <?= $selectedPhoneCountry === 'AR' ? 'selected' : '' ?>>Argentina (+54) · 10 dígitos</option>
+                                <option value="US" data-digits="10" <?= $selectedPhoneCountry === 'US' ? 'selected' : '' ?>>Estados Unidos (+1) · 10 dígitos</option>
+                            </select>
+                        </div>
+
+                        <div class="create-user-field">
                             <label for="edit_user_phone">Teléfono</label>
                             <input
                                 type="text"
                                 id="edit_user_phone"
                                 name="phone"
-                                value="<?= htmlspecialchars($userItem['phone'] ?? '') ?>"
-                                placeholder="Opcional">
+                                value="<?= htmlspecialchars(preg_replace('/\D+/', '', (string)($userItem['phone'] ?? '')) ?? '') ?>"
+                                inputmode="numeric"
+                                pattern="[0-9]*"
+                                maxlength="9"
+                                autocomplete="tel-national"
+                                data-phone-input
+                                data-phone-help="edit_user_phone_help"
+                                placeholder="Ej. 954874584">
                         </div>
 
                         <div class="create-user-field">
@@ -249,6 +288,9 @@ require_once __DIR__ . '/../layouts/header.php';
                                 id="edit_user_position"
                                 name="position"
                                 value="<?= htmlspecialchars($userItem['position'] ?? '') ?>"
+                                maxlength="80"
+                                autocomplete="organization-title"
+                                data-position-input
                                 placeholder="Ej. Jefe de TI">
                         </div>
 
@@ -291,6 +333,9 @@ require_once __DIR__ . '/../layouts/header.php';
                                     id="edit_user_company"
                                     name="company"
                                     value="<?= htmlspecialchars($userItem['company'] ?? '') ?>"
+                                    maxlength="150"
+                                    autocomplete="organization"
+                                    data-business-input
                                     placeholder="Ej. Ferreyros">
                                 <small>Cuando actives el módulo de empresas, este campo será reemplazado por empresa cliente vinculada.</small>
                             </div>
@@ -317,6 +362,68 @@ document.addEventListener("DOMContentLoaded", function () {
     const companyWrap = document.getElementById("editClientCompanyWrap");
     const companySelect = document.getElementById("edit_user_company_id");
     const legacyCompanyInput = document.getElementById("edit_user_company");
+    const phoneInput = document.getElementById("edit_user_phone");
+    const phoneCountry = document.getElementById("edit_user_phone_country");
+    const phoneHelp = document.getElementById("edit_user_phone_help");
+    const nameInputs = document.querySelectorAll("[data-name-input]");
+    const positionInputs = document.querySelectorAll("[data-position-input]");
+    const businessInputs = document.querySelectorAll("[data-business-input]");
+
+    function cleanNameValue(value) {
+        return value
+            .replace(/[^\p{L}\s'.-]/gu, "")
+            .replace(/\s{2,}/g, " ")
+            .slice(0, 80);
+    }
+
+    function cleanPositionValue(value) {
+        return value
+            .replace(/[^\p{L}\p{N}\s().,\/#&+_-]/gu, "")
+            .replace(/\s{2,}/g, " ")
+            .slice(0, 80);
+    }
+
+    function cleanBusinessValue(value) {
+        return value
+            .replace(/[^\p{L}\p{N}\s.,&'()\/#_+-]/gu, "")
+            .replace(/\s{2,}/g, " ")
+            .slice(0, 150);
+    }
+
+    function attachCleaner(inputs, cleaner) {
+        inputs.forEach(function (input) {
+            input.addEventListener("input", function () {
+                const cursor = input.selectionStart;
+                const originalLength = input.value.length;
+                input.value = cleaner(input.value);
+                const diff = originalLength - input.value.length;
+                if (cursor !== null) input.setSelectionRange(Math.max(cursor - diff, 0), Math.max(cursor - diff, 0));
+            });
+        });
+    }
+
+    function syncPhoneRules() {
+        if (!phoneInput || !phoneCountry) return;
+
+        const selectedOption = phoneCountry.options[phoneCountry.selectedIndex];
+        const digits = selectedOption ? parseInt(selectedOption.dataset.digits || "9", 10) : 9;
+        const countryLabel = selectedOption ? selectedOption.textContent.split("·")[0].trim() : "Perú (+51)";
+
+        phoneInput.maxLength = digits;
+        phoneInput.pattern = "[0-9]{" + digits + "}";
+        phoneInput.title = "Ingresa exactamente " + digits + " números para " + countryLabel + ".";
+        phoneInput.value = phoneInput.value.replace(/\D/g, "").slice(0, digits);
+
+        if (phoneHelp) {
+            phoneHelp.textContent = "Solo números. " + countryLabel + " requiere exactamente " + digits + " dígitos.";
+        }
+    }
+
+    function cleanPhoneInput() {
+        if (!phoneInput) return;
+        const maxLength = parseInt(phoneInput.maxLength || "9", 10);
+        phoneInput.value = phoneInput.value.replace(/\D/g, "").slice(0, maxLength);
+    }
 
     function setRequired(element, required) {
         if (!element) return;
@@ -370,8 +477,15 @@ document.addEventListener("DOMContentLoaded", function () {
         });
     }
 
+    attachCleaner(nameInputs, cleanNameValue);
+    attachCleaner(positionInputs, cleanPositionValue);
+    attachCleaner(businessInputs, cleanBusinessValue);
+
     if (roleSelect) roleSelect.addEventListener("change", syncRoleFields);
+    if (phoneInput) phoneInput.addEventListener("input", cleanPhoneInput);
+    if (phoneCountry) phoneCountry.addEventListener("change", syncPhoneRules);
     syncRoleFields();
+    syncPhoneRules();
 });
 </script>
 
