@@ -4,11 +4,16 @@ require_once __DIR__ . '/app/controllers/AuthController.php';
 require_once __DIR__ . '/app/helpers/session.php';
 require_once __DIR__ . '/app/helpers/system_security.php';
 require_once __DIR__ . '/app/helpers/remember_me.php';
+require_once __DIR__ . '/app/helpers/login_two_factor.php';
 
 $reason = trim((string) ($_GET['reason'] ?? ''));
+$twoFactorActive = loginTwoFactorActive($pdo);
 $skipPersistentRestore = ['idle_timeout', 'absolute_timeout', 'revoked', 'inactive_user'];
 
-if (!isLoggedIn() && !in_array($reason, $skipPersistentRestore, true)) {
+if (!isLoggedIn()
+    && !$twoFactorActive
+    && !in_array($reason, $skipPersistentRestore, true)
+) {
     authRememberAttempt($pdo);
 }
 
@@ -36,6 +41,7 @@ $reasonMessages = [
     'revoked' => 'La sesión fue cerrada desde el panel de seguridad.',
     'inactive_user' => 'La cuenta ya no tiene acceso al sistema.',
     'expired' => 'La sesión venció. Ingresa nuevamente.',
+    '2fa_expired' => 'El código de verificación venció. Ingresa nuevamente para recibir uno nuevo.',
 ];
 
 if (isset($reasonMessages[$reason])) {
@@ -48,9 +54,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } else {
         $email = trim((string) ($_POST['email'] ?? ''));
         $password = (string) ($_POST['password'] ?? '');
-        $rememberMe = isset($_POST['remember_me']) && (string) $_POST['remember_me'] === '1';
+        $rememberMe = !$twoFactorActive && isset($_POST['remember_me']) && (string) $_POST['remember_me'] === '1';
 
         $result = $authController->login($email, $password, $rememberMe);
+
+        if (!empty($result['requires_2fa'])) {
+            header('Location: /helpdesk-php/verify-2fa.php');
+            exit;
+        }
 
         if (!empty($result['success'])) {
             if (!empty($result['force_password_change'])) {
@@ -190,21 +201,33 @@ $authCssVersion = file_exists($authCssPath) ? filemtime($authCssPath) : time();
                             </small>
                         </div>
 
-                        <label class="login-remember-option">
-                            <input
-                                type="checkbox"
-                                name="remember_me"
-                                value="1"
-                                <?= isset($_POST['remember_me']) ? 'checked' : '' ?>
-                            >
-                            <span class="login-remember-control" aria-hidden="true">
-                                <i class="fa-solid fa-check"></i>
-                            </span>
-                            <span class="login-remember-copy">
-                                <strong>Recordarme en este dispositivo</strong>
-                                <small>Mantendrá tu acceso durante 14 días.</small>
-                            </span>
-                        </label>
+                        <?php if (!$twoFactorActive): ?>
+                            <label class="login-remember-option">
+                                <input
+                                    type="checkbox"
+                                    name="remember_me"
+                                    value="1"
+                                    <?= isset($_POST['remember_me']) ? 'checked' : '' ?>
+                                >
+                                <span class="login-remember-control" aria-hidden="true">
+                                    <i class="fa-solid fa-check"></i>
+                                </span>
+                                <span class="login-remember-copy">
+                                    <strong>Recordarme en este dispositivo</strong>
+                                    <small>Mantendrá tu acceso durante 14 días.</small>
+                                </span>
+                            </label>
+                        <?php else: ?>
+                            <div class="login-remember-option" style="cursor: default;">
+                                <span class="login-remember-control" aria-hidden="true">
+                                    <i class="fa-solid fa-shield-halved"></i>
+                                </span>
+                                <span class="login-remember-copy">
+                                    <strong>Verificación de dos pasos activa</strong>
+                                    <small>Se solicitará un código enviado a tu correo en cada inicio de sesión.</small>
+                                </span>
+                            </div>
+                        <?php endif; ?>
 
                         <button
                             type="submit"

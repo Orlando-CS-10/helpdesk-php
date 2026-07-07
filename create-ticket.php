@@ -9,6 +9,7 @@ require_once __DIR__ . '/app/helpers/notifications.php';
 require_once __DIR__ . '/app/helpers/ticket_activity.php';
 require_once __DIR__ . '/app/helpers/technician_assignment.php';
 require_once __DIR__ . '/app/helpers/system_sla.php';
+require_once __DIR__ . '/app/helpers/ticket_mail.php';
 
 requireLogin();
 
@@ -221,6 +222,33 @@ try {
     );
 
     $pdo->commit();
+
+    try {
+        ticketMailNotifyTicketCreated(
+            $pdo,
+            [
+                'id' => $createdTicketId,
+                'subject' => $subject,
+                'description' => $description,
+                'priority' => $priority,
+                'category' => $category,
+                'status' => $initialStatus,
+                'sla_hours' => $slaHours,
+                'support_level' => $supportLevel,
+                'created_at' => $createdAt,
+                'sla_profile_name' => $slaData['profile_name'] ?? '',
+                'sla_tta_due_at' => $slaData['tta_due_at'] ?? null,
+                'sla_ttr_due_at' => $slaData['ttr_due_at'] ?? null,
+            ],
+            $currentUser,
+            $assignedTo,
+            $assignedTech
+        );
+    } catch (Throwable $mailException) {
+        if (function_exists('ticketMailLogError')) {
+            ticketMailLogError('ticket_created', $createdTicketId, $mailException->getMessage());
+        }
+    }
 
     if ($assignedTo !== null) {
         $_SESSION['ticket_success'] = 'El ticket fue creado y asignado automáticamente a un técnico de nivel 1.';

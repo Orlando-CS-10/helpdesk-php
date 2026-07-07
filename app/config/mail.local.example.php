@@ -1,28 +1,19 @@
 <?php
 
-declare(strict_types=1);
-
-/**
- * Copia este archivo como mail.local.php y reemplaza los valores.
- * No subas mail.local.php a Git ni lo compartas.
- */
 return [
     'enabled' => true,
     'host' => 'smtp.gmail.com',
     'port' => 587,
     'encryption' => 'tls',
     'auth' => true,
-    'username' => 'tu-cuenta@gmail.com',
-    'password' => 'CONTRASENA_DE_APLICACION_DE_16_CARACTERES',
-    'from_email' => 'tu-cuenta@gmail.com',
+    'username' => 'tu-correo@gmail.com',
+    'password' => 'tu-contraseña-de-aplicacion',
+    'from_email' => 'tu-correo@gmail.com',
     'from_name' => 'Mesa de Ayuda Pronet System',
-    'reply_to' => 'tu-cuenta@gmail.com',
-
-    // Para XAMPP local:
+    'reply_to' => 'tu-correo@gmail.com',
     'app_url' => 'http://localhost/helpdesk-php',
-
-    // Para Cloudflare Tunnel, reemplaza la línea anterior por algo como:
-    // 'app_url' => 'https://tu-subdominio.trycloudflare.com/helpdesk-php',
-
     'token_ttl_minutes' => 30,
+    'two_factor_ttl_minutes' => 5,
+    'two_factor_resend_seconds' => 60,
+    'two_factor_max_attempts' => 5,
 ];

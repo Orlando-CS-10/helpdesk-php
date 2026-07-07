@@ -1,0 +1,105 @@
+.two-factor-page .two-factor-shell {
+    align-items: stretch;
+}
+
+.two-factor-card .login-card-inner {
+    max-width: 460px;
+}
+
+.two-factor-header .subtitle strong {
+    color: #0f3d2e;
+    font-weight: 900;
+}
+
+.two-factor-icon {
+    background: linear-gradient(135deg, #0f3d2e, #1f7a5a);
+}
+
+.two-factor-code-wrap input {
+    font-size: 24px;
+    font-weight: 900;
+    letter-spacing: 8px;
+    text-align: center;
+}
+
+.two-factor-code-wrap input::placeholder {
+    letter-spacing: 8px;
+}
+
+.two-factor-hint {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    margin-top: 8px;
+    color: #64748b;
+    font-size: 12px;
+    line-height: 1.4;
+}
+
+.two-factor-hint strong {
+    color: #ff7a00;
+}
+
+.two-factor-submit {
+    margin-top: 4px;
+}
+
+.two-factor-resend-form {
+    margin-top: 14px;
+}
+
+.two-factor-resend-btn {
+    width: 100%;
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    border: 1px solid #dbe7df;
+    border-radius: 13px;
+    background: #eef6f2;
+    color: #0f3d2e;
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 900;
+    cursor: pointer;
+    transition: transform .18s ease, background .18s ease, border-color .18s ease;
+}
+
+.two-factor-resend-btn:hover:not(:disabled) {
+    transform: translateY(-1px);
+    background: #e6f3ec;
+    border-color: #cfe4da;
+}
+
+.two-factor-resend-btn:disabled {
+    cursor: not-allowed;
+    opacity: .62;
+}
+
+.two-factor-footer-actions {
+    margin-top: 16px;
+    text-align: center;
+}
+
+.two-factor-back-link {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    color: #64748b;
+    font-size: 12px;
+    font-weight: 800;
+    text-decoration: none;
+}
+
+.two-factor-back-link:hover {
+    color: #0f3d2e;
+}
+
+@media (max-width: 640px) {
+    .two-factor-code-wrap input {
+        font-size: 21px;
+        letter-spacing: 5px;
+    }
+}

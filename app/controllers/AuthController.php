@@ -4,6 +4,7 @@ require_once __DIR__ . '/../config/database.php';
 require_once __DIR__ . '/../helpers/session.php';
 require_once __DIR__ . '/../helpers/system_security.php';
 require_once __DIR__ . '/../helpers/remember_me.php';
+require_once __DIR__ . '/../helpers/login_two_factor.php';
 
 class AuthController
 {
@@ -149,6 +150,10 @@ class AuthController
             }
         }
 
+        if (function_exists('loginTwoFactorActive') && loginTwoFactorActive($this->pdo)) {
+            return $this->startTwoFactorChallenge($user, $rememberMe, $forcePasswordChange);
+        }
+
         session_regenerate_id(true);
 
         $_SESSION['user'] = [
@@ -200,6 +205,206 @@ class AuthController
             'role' => (string) ($user['role'] ?? ''),
             'force_password_change' => $forcePasswordChange,
         ];
+    }
+
+    public function completeTwoFactorLogin(int $userId, bool $rememberMe = false, bool $forcePasswordChange = false): array
+    {
+        $statement = $this->pdo->prepare('SELECT * FROM users WHERE id = :id LIMIT 1');
+        $statement->execute(['id' => $userId]);
+        $user = $statement->fetch(PDO::FETCH_ASSOC);
+
+        if (!$user || (int) ($user['status'] ?? 0) !== 1) {
+            systemSecurityAudit(
+                $this->pdo,
+                'TWO_FACTOR_LOGIN_BLOCKED',
+                'No se pudo completar el inicio de sesión tras la verificación de dos pasos.',
+                $userId > 0 ? $userId : null,
+                null,
+                'warning'
+            );
+
+            return [
+                'success' => false,
+                'message' => 'La cuenta ya no está disponible para iniciar sesión.',
+            ];
+        }
+
+        $settings = getSystemSecuritySettings($this->pdo);
+        $credentialHash = (string) ($user['password'] ?? '');
+        $forcePasswordChange = $forcePasswordChange
+            || !empty($user['force_password_change'])
+            || systemSecurityPasswordExpired($user, $settings);
+
+        session_regenerate_id(true);
+
+        $_SESSION['user'] = [
+            'id' => $userId,
+            'name' => (string) ($user['name'] ?? ''),
+            'email' => (string) ($user['email'] ?? ''),
+            'role' => (string) ($user['role'] ?? ''),
+            'status' => (int) ($user['status'] ?? 1),
+            'profile_photo' => $user['profile_photo'] ?? null,
+            'force_password_change' => $forcePasswordChange ? 1 : 0,
+        ];
+
+        // Compatibilidad con páginas antiguas del proyecto.
+        $_SESSION['user_id'] = $userId;
+        $_SESSION['user_name'] = (string) ($user['name'] ?? '');
+        $_SESSION['user_email'] = (string) ($user['email'] ?? '');
+        $_SESSION['user_role'] = (string) ($user['role'] ?? '');
+
+        $token = systemSecurityCreateSession($this->pdo, $userId, $settings);
+        if ($token !== null) {
+            $_SESSION['security_session_token'] = $token;
+        }
+
+        $_SESSION['security_session_started_at'] = time();
+        $_SESSION['security_last_activity_at'] = time();
+        $_SESSION['security_db_touch_at'] = time();
+
+        if ($rememberMe) {
+            authRememberIssueForUser($this->pdo, $userId, $credentialHash);
+        } else {
+            authRememberForgetCurrent($this->pdo, 'El usuario inició sesión sin recordar el dispositivo');
+        }
+
+        try {
+            $sets = [];
+            foreach (['last_login_at' => 'NOW()'] as $column => $value) {
+                if (systemSecurityColumnExists($this->pdo, 'users', $column)) {
+                    $sets[] = "`{$column}` = {$value}";
+                }
+            }
+            if ($sets) {
+                $update = $this->pdo->prepare('UPDATE users SET ' . implode(', ', $sets) . ' WHERE id = :id');
+                $update->execute(['id' => $userId]);
+            }
+        } catch (Throwable $exception) {
+            // La autenticación no falla si no se registra la fecha.
+        }
+
+        systemSecurityAudit(
+            $this->pdo,
+            'LOGIN_SUCCESS_2FA',
+            'Inicio de sesión correcto con autenticación de dos pasos.',
+            $userId,
+            $userId,
+            'info',
+            [
+                'role' => (string) ($user['role'] ?? ''),
+                'remember_me' => $rememberMe,
+                'two_factor' => true,
+            ]
+        );
+
+        return [
+            'success' => true,
+            'role' => (string) ($user['role'] ?? ''),
+            'force_password_change' => $forcePasswordChange,
+        ];
+    }
+
+    private function startTwoFactorChallenge(array $user, bool $rememberMe, bool $forcePasswordChange): array
+    {
+        $userId = (int) ($user['id'] ?? 0);
+        $config = loginTwoFactorConfig();
+        $ttlMinutes = loginTwoFactorTtlMinutes($config);
+        $resendSeconds = loginTwoFactorResendSeconds($config);
+
+        if (!loginTwoFactorMailConfigured($config)) {
+            return [
+                'success' => false,
+                'message' => 'El correo de verificación todavía no está configurado. Comunícate con el administrador.',
+            ];
+        }
+
+        try {
+            $issued = loginTwoFactorIssueChallenge(
+                $this->pdo,
+                $user,
+                $ttlMinutes,
+                loginTwoFactorMaxAttempts($config)
+            );
+
+            $delivery = loginTwoFactorSendEmail(
+                $config,
+                $user,
+                (string) $issued['code'],
+                $ttlMinutes
+            );
+
+            loginTwoFactorMarkDelivery(
+                $this->pdo,
+                (int) $issued['id'],
+                (bool) $delivery['ok'],
+                (string) $delivery['error']
+            );
+
+            if (empty($delivery['ok'])) {
+                loginTwoFactorLogMailError($userId, (string) $delivery['error']);
+
+                systemSecurityAudit(
+                    $this->pdo,
+                    'TWO_FACTOR_EMAIL_FAILED',
+                    'No se pudo enviar el código de autenticación de dos pasos.',
+                    $userId,
+                    null,
+                    'warning',
+                    ['error' => substr((string) $delivery['error'], 0, 180)]
+                );
+
+                return [
+                    'success' => false,
+                    'message' => 'No se pudo enviar el código de verificación. Revisa la configuración SMTP o intenta nuevamente.',
+                ];
+            }
+
+            $_SESSION['pending_2fa'] = [
+                'challenge_id' => (int) $issued['id'],
+                'user_id' => $userId,
+                'name' => (string) ($user['name'] ?? 'Usuario'),
+                'email' => (string) ($user['email'] ?? ''),
+                'masked_email' => loginTwoFactorMaskEmail((string) ($user['email'] ?? '')),
+                'role' => (string) ($user['role'] ?? ''),
+                'remember_me' => $rememberMe ? 1 : 0,
+                'force_password_change' => $forcePasswordChange ? 1 : 0,
+                'expires_at' => (int) $issued['expires_at_ts'],
+                'issued_at' => time(),
+                'resend_available_at' => time() + $resendSeconds,
+            ];
+
+            systemSecurityAudit(
+                $this->pdo,
+                'TWO_FACTOR_CODE_SENT',
+                'Se envió un código de autenticación de dos pasos.',
+                $userId,
+                null,
+                'info',
+                ['expires_in_minutes' => $ttlMinutes]
+            );
+
+            return [
+                'success' => false,
+                'requires_2fa' => true,
+                'masked_email' => $_SESSION['pending_2fa']['masked_email'],
+                'message' => 'Te enviamos un código de verificación al correo registrado.',
+            ];
+        } catch (Throwable $exception) {
+            systemSecurityAudit(
+                $this->pdo,
+                'TWO_FACTOR_START_FAILED',
+                'No se pudo iniciar la autenticación de dos pasos.',
+                $userId > 0 ? $userId : null,
+                null,
+                'warning',
+                ['error' => substr($exception->getMessage(), 0, 180)]
+            );
+
+            return [
+                'success' => false,
+                'message' => 'No se pudo preparar la verificación de dos pasos. Inténtalo nuevamente.',
+            ];
+        }
     }
 
     public function logout(string $reason = 'Cierre de sesión voluntario'): void
